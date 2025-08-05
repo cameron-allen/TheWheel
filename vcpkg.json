@@ -1,0 +1,9 @@
+{
+  "name": "TheWheel",
+  "version": "0.1.0",
+  "dependencies": [
+    "sdl3",
+    "glm",
+	"imgui"
+  ]
+}
