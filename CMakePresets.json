@@ -2,26 +2,62 @@
     "version": 4,
     "configurePresets": [
         {
-            "name": "windows-base",
+            "name": "base",
             "hidden": true,
             "generator": "Ninja",
             "binaryDir": "${sourceDir}/out/build/${presetName}",
             "installDir": "${sourceDir}/out/install/${presetName}",
             "cacheVariables": {
-              "CMAKE_C_COMPILER": "cl.exe",
-              "CMAKE_CXX_COMPILER": "cl.exe",
               "CMAKE_TOOLCHAIN_FILE": "external/vcpkg/scripts/buildsystems/vcpkg.cmake"
-            },
+            }
+        },
+        {
+            "name": "windows-base",
+            "inherits": "base",
             "condition": {
               "type": "equals",
               "lhs": "${hostSystemName}",
               "rhs": "Windows"
+            },
+            "cacheVariables": {
+              "CMAKE_C_COMPILER": "cl.exe",
+              "CMAKE_CXX_COMPILER": "cl.exe"
+            }
+        },
+        {
+            "name": "linux-base",
+            "inherits": "base",
+            "condition": {
+              "type": "equals",
+              "lhs": "${hostSystemName}",
+              "rhs": "Linux"
+            },
+            "cacheVariables": {
+              "CMAKE_C_COMPILER": "gcc",
+              "CMAKE_CXX_COMPILER": "g++"
+            }
+        },
+        {
+            "name": "macos-base",
+            "inherits": "base",
+            "condition": {
+              "type": "equals",
+              "lhs": "${hostSystemName}",
+              "rhs": "Darwin"
+            },
+            "cacheVariables": {
+              "CMAKE_C_COMPILER": "clang",
+              "CMAKE_CXX_COMPILER": "clang++"
             }
         },
         {
             "name": "x64-debug",
             "displayName": "x64 Debug",
-            "inherits": "windows-base",
+            "inherits": [
+              "windows-base",
+              "linux-base",
+              "macos-base"
+            ],
             "architecture": {
               "value": "x64",
               "strategy": "external"
@@ -44,7 +80,11 @@
         {
             "name": "x86-debug",
             "displayName": "x86 Debug",
-            "inherits": "windows-base",
+            "inherits": [
+              "windows-base",
+              "linux-base",
+              "macos-base"
+            ],
             "architecture": {
                 "value": "x86",
                 "strategy": "external"
