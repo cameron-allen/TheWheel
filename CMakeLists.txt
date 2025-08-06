@@ -12,10 +12,11 @@ endif()
 project ("TheWheel")
 
 # Add external libraries
-list(APPEND CMAKE_PREFIX_PATH "${CMAKE_SOURCE_DIR}/external/SDL3/cmake")
-find_package(SDL3 REQUIRED CONFIG)
+find_package(SDL3 CONFIG REQUIRED)
+find_package(glm CONFIG REQUIRED)
+find_package(imgui CONFIG REQUIRED)
 
-add_subdirectory(external/glm)
+#add_subdirectory(external/glm)
 
 # Add .cpp and .h files recursively
 file(GLOB_RECURSE SRC_FILES "${CMAKE_SOURCE_DIR}/src/*.cpp" "${CMAKE_SOURCE_DIR}/include/*.h")
@@ -25,8 +26,11 @@ add_executable(TheWheel ${SRC_FILES})
 target_include_directories(TheWheel PRIVATE "${CMAKE_SOURCE_DIR}/include")
 
 # Link libraries
-target_link_libraries(TheWheel PRIVATE SDL3::SDL3)
-target_link_libraries(TheWheel PRIVATE glm::glm-header-only)
+target_link_libraries(TheWheel PRIVATE 
+SDL3::SDL3
+glm::glm-header-only
+imgui::imgui
+)
 
 if (CMAKE_VERSION VERSION_GREATER 3.12)
   set_property(TARGET TheWheel PROPERTY CXX_STANDARD 20)

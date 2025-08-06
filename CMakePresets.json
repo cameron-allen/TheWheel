@@ -1,20 +1,24 @@
 ﻿{
-    "version": 3,
+    "version": 4,
     "configurePresets": [
         {
             "name": "windows-base",
             "hidden": true,
-            "generator": "Ninja",
+            "generator": "Visual Studio 17 2022",
+            "toolset": {
+              "value": "host=x64"
+            },
             "binaryDir": "${sourceDir}/out/build/${presetName}",
             "installDir": "${sourceDir}/out/install/${presetName}",
             "cacheVariables": {
-                "CMAKE_C_COMPILER": "cl.exe",
-                "CMAKE_CXX_COMPILER": "cl.exe"
+              //"CMAKE_C_COMPILER": "cl.exe",
+              //"CMAKE_CXX_COMPILER": "cl.exe",
+              "CMAKE_TOOLCHAIN_FILE": "external/vcpkg/scripts/buildsystems/vcpkg.cmake"
             },
             "condition": {
-                "type": "equals",
-                "lhs": "${hostSystemName}",
-                "rhs": "Windows"
+              "type": "equals",
+              "lhs": "${hostSystemName}",
+              "rhs": "Windows"
             }
         },
         {
@@ -22,20 +26,23 @@
             "displayName": "x64 Debug",
             "inherits": "windows-base",
             "architecture": {
-                "value": "x64",
-                "strategy": "external"
+              "value": "x64",
+              "strategy": "external"
             },
-            "cacheVariables": {
-                "CMAKE_BUILD_TYPE": "Debug"
+            "toolset": {
+              "value": "host=x64"
             }
+            //"cacheVariables": {
+            //    "CMAKE_BUILD_TYPE": "Debug"
+            //}
         },
         {
             "name": "x64-release",
             "displayName": "x64 Release",
-            "inherits": "x64-debug",
-            "cacheVariables": {
-                "CMAKE_BUILD_TYPE": "Release"
-            }
+            "inherits": "x64-debug"
+            //"cacheVariables": {
+            //    "CMAKE_BUILD_TYPE": "Release"
+            //}
         },
         {
             "name": "x86-debug",
@@ -45,17 +52,54 @@
                 "value": "x86",
                 "strategy": "external"
             },
-            "cacheVariables": {
-                "CMAKE_BUILD_TYPE": "Debug"
+            "toolset": {
+              "value": "host=x86"
             }
         },
         {
             "name": "x86-release",
             "displayName": "x86 Release",
-            "inherits": "x86-debug",
-            "cacheVariables": {
-                "CMAKE_BUILD_TYPE": "Release"
-            }
+            "inherits": "x86-debug"
+        }
+    ],
+    "buildPresets": [
+        {
+            "name": "x64-release",
+            "configurePreset": "x64-release",
+            "configuration": "Release"
+        },
+        {
+            "name": "x64-debug",
+            "configurePreset": "x64-debug",
+            "configuration": "Debug"
+        },
+        {
+            "name": "x86-debug",
+            "configurePreset": "x86-debug",
+            "configuration": "Debug"
+        },
+        {
+            "name": "x86-release",
+            "configurePreset": "x86-release",
+            "configuration": "Release"
+        }
+    ],
+    "launchPresets": [
+        {
+            "name": "debug-launch",
+            "hidden": false,
+            "description": "Launch TheWheel Debug",
+            "presetName": "x64-debug",
+            "target": "TheWheel",
+            "configuration": "Debug"
+        },
+        {
+            "name": "release-launch",
+            "hidden": false,
+            "description": "Launch TheWheel Release",
+            "presetName": "x64-release",
+            "target": "TheWheel",
+            "configuration": "Release"
         }
     ]
 }
