@@ -1,7 +1,7 @@
 ﻿# CMakeList.txt : CMake project for TheWheel, include source and define
 # project specific logic here.
 #
-cmake_minimum_required (VERSION 3.8)
+cmake_minimum_required (VERSION 3.28)
 
 # Enable Hot Reload for MSVC compilers if supported.
 if (POLICY CMP0141)
@@ -11,22 +11,46 @@ endif()
 
 project ("TheWheel")
 
-# Add external libraries
+# Set to C++20
+set(CMAKE_CXX_STANDARD 20)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+
+message(STATUS "C++ standard: ${CMAKE_CXX_STANDARD}")
+
+# Avoid backslash issues with VULKAN_SDK on Windows
+file(TO_CMAKE_PATH "$ENV{VULKAN_SDK}" VULKAN_SDK_FIXED)
+
+# Print for sanity
+message(STATUS "Vulkan include dirs: ${Vulkan_INCLUDE_DIRS}")
+
+# Find packages
+find_package(Vulkan REQUIRED)
 find_package(SDL3 CONFIG REQUIRED)
 find_package(glm CONFIG REQUIRED)
 find_package(imgui CONFIG REQUIRED)
 
-#add_subdirectory(external/glm)
-
 # Add .cpp and .h files recursively
 file(GLOB_RECURSE SRC_FILES "${CMAKE_SOURCE_DIR}/src/*.cpp" "${CMAKE_SOURCE_DIR}/include/*.h")
-add_executable(TheWheel ${SRC_FILES})
+add_executable(TheWheel ${SRC_FILES} "include/core/engine.h" "src/core/engine.cpp" "include/core/window.h" "src/core/window.cpp")
 
 # Link directories
-target_include_directories(TheWheel PRIVATE "${CMAKE_SOURCE_DIR}/include")
+target_include_directories(TheWheel PRIVATE 
+"${CMAKE_SOURCE_DIR}/include"
+"${Vulkan_INCLUDE_DIRS}"
+)
+
+# Vulkan compiler definitions
+target_compile_definitions(TheWheel PRIVATE
+    VULKAN_HPP_DISPATCH_LOADER_DYNAMIC=1
+    VULKAN_HPP_NO_STRUCT_CONSTRUCTORS=1
+)
+
+# Use precompiled header "pch.h"
+target_precompile_headers(TheWheel PRIVATE ${CMAKE_SOURCE_DIR}/include/pch.h)
 
 # Link libraries
 target_link_libraries(TheWheel PRIVATE 
+Vulkan::Vulkan
 SDL3::SDL3
 glm::glm-header-only
 imgui::imgui
