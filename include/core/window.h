@@ -1,5 +1,6 @@
 #pragma once
 #include <SDL3/SDL.h>
+#include <SDL3/SDL_vulkan.h>
 
 class SDLWindow 
 {
@@ -18,4 +19,7 @@ public:
 	void close() { m_open = false; }
 	//@brief Checks and responds to SDL events
 	void checkEvents();
+
+	//@brief Returns SDL window
+	SDL_Window* GetWindow() { return mp_window; }
 };
