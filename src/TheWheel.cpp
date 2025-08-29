@@ -2,7 +2,7 @@
 #include "core/engine.h"
 
 int main() {
-    Core app{};
+    Core& app = Core::GetInstance();
 
     try {
         app.run();
