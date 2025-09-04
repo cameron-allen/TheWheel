@@ -7,14 +7,14 @@
 
 Core* Core::mp_instance = nullptr;
 
-const std::vector<const char*> validationLayers = {
+const std::vector<const char*> VALIDATION_LAYERS = {
     "VK_LAYER_KHRONOS_validation"
 };
 
 #ifdef NDEBUG
-constexpr bool enableValidationLayers = false;
+constexpr bool ENABLE_VALIDATION_LAYERS = false;
 #else
-constexpr bool enableValidationLayers = true;
+constexpr bool ENABLE_VALIDATION_LAYERS = true;
 #endif
 
 static VKAPI_ATTR vk::Bool32 VKAPI_CALL DebugCallback(vk::DebugUtilsMessageSeverityFlagBitsEXT severity, vk::DebugUtilsMessageTypeFlagsEXT type, const vk::DebugUtilsMessengerCallbackDataEXT* pCallbackData, void*) {
@@ -35,6 +35,48 @@ void Core::setupDebugMessenger()
     m_debugMessenger = m_instance.createDebugUtilsMessengerEXT(debugUtilsMessengerCreateInfoEXT);
 }
 
+void Core::selectPhysicalDevices()
+{
+    vk::raii::PhysicalDevice physicalDevice = m_instance.enumeratePhysicalDevices().front();
+    auto devices = m_instance.enumeratePhysicalDevices();
+
+    try 
+    {
+        if (devices.empty()) {
+            throw std::runtime_error("failed to find GPUs with Vulkan support!");
+        }
+
+        std::cout << "------Devices-------" << std::endl;
+        for (const auto& device : devices)
+            if (suitableDiscreteGPU(device)) 
+                break;
+        std::cout << "--------------------" << std::endl;
+        vk::raii::Device device(physicalDevice, vk::DeviceCreateInfo{});
+
+        // Use Vulkan objects
+        vk::raii::Buffer buffer(device, vk::BufferCreateInfo{});
+
+    }
+    catch (const std::exception& err) {
+        std::cerr << "Device Setup Error: " << err.what() << std::endl;
+        assert(0);
+    }
+    std::cout << std::endl;
+}
+
+bool Core::suitableDiscreteGPU(const vk::raii::PhysicalDevice& device)
+{
+    auto deviceProperties = device.getProperties();
+    auto deviceFeatures = device.getFeatures();
+    if (deviceProperties.deviceType == vk::PhysicalDeviceType::eDiscreteGpu &&
+        deviceFeatures.geometryShader) {
+        std::cout << "Selected: " << deviceProperties.deviceName << std::endl;
+        mp_dGPU = &device;
+        return true;
+    }
+    return false;
+}
+
 Core& Core::GetInstance()
 {
     if (!mp_instance)
@@ -48,9 +90,16 @@ std::vector<const char*> Core::GetRequiredExtensions()
     const char* const* sdlExtensions = SDL_Vulkan_GetInstanceExtensions(&sdlExtensionCount);
 
     std::vector extensions(sdlExtensions, sdlExtensions + sdlExtensionCount);
-    if (enableValidationLayers) {
+    if (ENABLE_VALIDATION_LAYERS) {
         extensions.push_back(vk::EXTDebugUtilsExtensionName);
     }
+
+    std::cout << "-----Extensions-----\n";
+    for (int i = 0; i < extensions.size(); i++)
+    {
+        std::cout << extensions[i] << std::endl;
+    }
+    std::cout << "--------------------\n";
 
     return extensions;
 }
@@ -77,9 +126,9 @@ void Core::init()
     };
 
     std::vector<char const*> requiredLayers, requiredExtensions = Core::GetRequiredExtensions();
-    if (enableValidationLayers) {
-        requiredLayers.assign(validationLayers.begin(), validationLayers.end());
-    }
+    if (ENABLE_VALIDATION_LAYERS) {
+        requiredLayers.assign(VALIDATION_LAYERS.begin(), VALIDATION_LAYERS.end());
+    } 
 
     try 
     {
@@ -105,6 +154,13 @@ void Core::init()
             }
         }
 
+        std::cout << "-----Layers-----\n";
+        for (int i = 0; i < requiredLayers.size(); i++)
+        {
+            std::cout << requiredLayers[i] << std::endl;
+        }
+        std::cout << "--------------------\n";
+
         vk::InstanceCreateInfo createInfo{
             .sType = vk::StructureType::eInstanceCreateInfo,
             .pApplicationInfo = &appInfo,
@@ -115,11 +171,6 @@ void Core::init()
         };
 
         m_instance = vk::raii::Instance{ m_context, createInfo };
-        vk::raii::PhysicalDevice physicalDevice = m_instance.enumeratePhysicalDevices().front();
-        vk::raii::Device device(physicalDevice, vk::DeviceCreateInfo{});
-
-        // Use Vulkan objects
-        vk::raii::Buffer buffer(device, vk::BufferCreateInfo{});
     }
     catch (const vk::SystemError& err) {
         std::cerr << "Vulkan error: " << err.what() << std::endl;
@@ -130,8 +181,10 @@ void Core::init()
         assert(0);
     }
 
-    if (enableValidationLayers)
+    if (ENABLE_VALIDATION_LAYERS)
         setupDebugMessenger();
+
+    selectPhysicalDevices();
 }
 
 void Core::loop()
