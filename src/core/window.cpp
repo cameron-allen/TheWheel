@@ -10,11 +10,6 @@ void SDLWindow::init()
         throw SDL_GetError();
     }
 
-    /*if (!SDL_Vulkan_LoadLibrary(nullptr)) {
-        std::cerr << "SDL_Vulkan_LoadLibrary Error: " << SDL_GetError() << "\n";
-        throw SDL_GetError();
-    }*/
-
     // Create a window
     mp_window = SDL_CreateWindow(
         "The Wheel",                                // title
