@@ -12,7 +12,7 @@ const std::vector<const char*> VALIDATION_LAYERS = {
 };
 
 static VKAPI_ATTR vk::Bool32 VKAPI_CALL DebugCallback(vk::DebugUtilsMessageSeverityFlagBitsEXT severity, vk::DebugUtilsMessageTypeFlagsEXT type, const vk::DebugUtilsMessengerCallbackDataEXT* pCallbackData, void*) {
-    std::cerr << "validation layer: type " << to_string(type) << " msg: " << pCallbackData->pMessage << std::endl;
+    std::cerr << "\nvalidation layer: type " << to_string(type) << " msg: " << pCallbackData->pMessage << std::endl;
     return vk::False;
 }
 
@@ -46,11 +46,6 @@ void Core::selectPhysicalDevices()
                 break;
         if constexpr (DISPLAY_VULKAN_INFO)
             std::cout << "--------------------" << std::endl;
-        
-        vk::raii::Device device(physicalDevice, vk::DeviceCreateInfo{});
-        // Use Vulkan objects
-        vk::raii::Buffer buffer(device, vk::BufferCreateInfo{});
-
     }
     catch (const std::exception& err) {
         std::cerr << "Device Setup Error: " << err.what() << std::endl;
@@ -58,8 +53,6 @@ void Core::selectPhysicalDevices()
     }
 }
 
-
-// TDO: Modify this to create a presentation queue too
 void Core::setupLogicalDevice()
 {
     std::vector<vk::QueueFamilyProperties> queueFamilyProperties = m_dGPU.getQueueFamilyProperties();
@@ -73,7 +66,7 @@ void Core::setupLogicalDevice()
     std::vector<vk::SurfaceFormatKHR> availableFormats = m_dGPU.getSurfaceFormatsKHR(m_surface);
     std::vector<vk::PresentModeKHR> availablePresentModes = m_dGPU.getSurfacePresentModesKHR(m_surface);
     
-    float queuePriority = 0.0f;
+    float queuePriority = 1.0f;
     m_gFamilyIndex = static_cast<uint32_t>(std::distance(queueFamilyProperties.begin(), graphicsQueueFamilyProperty));
 
     // Create a chain of feature structures
@@ -129,28 +122,6 @@ void Core::setupLogicalDevice()
         throw std::runtime_error("Could not find a queue for graphics or present -> terminating");
     }
 
-    // Iterate over the queue families to find one with graphics capabilities
-    /*for (int i = 0; i < queueFamilyProperties.size(); ++i) {
-        if (queueFamilyProperties[i].queueFlags & vk::QueueFlagBits::eGraphics) {
-            graphicsIndex = i;
-            break;
-        }
-    }*/
-
-    /*vk::DeviceQueueCreateInfo deviceQueueCreateInfo{
-        .queueFamilyIndex = graphicsIndex,
-        .queueCount = 1,
-        .pQueuePriorities = &queuePriority
-    };
-
-    vk::DeviceCreateInfo deviceCreateInfo{
-        .pNext = &featureChain.get<vk::PhysicalDeviceFeatures2>(),
-        .queueCreateInfoCount = 1,
-        .pQueueCreateInfos = &deviceQueueCreateInfo,
-        .enabledExtensionCount = static_cast<uint32_t>(deviceExtensions.size()),
-        .ppEnabledExtensionNames = deviceExtensions.data()
-    };*/
-
     // query for Vulkan 1.3 features
     auto features = m_dGPU.getFeatures2();
     vk::PhysicalDeviceVulkan13Features vulkan13Features;
@@ -161,10 +132,21 @@ void Core::setupLogicalDevice()
     features.pNext = &vulkan13Features;
     
     // create a Device
-    vk::DeviceQueueCreateInfo deviceQueueCreateInfo{ .queueFamilyIndex = m_gFamilyIndex, .queueCount = 1, .pQueuePriorities = &queuePriority };
-    vk::DeviceCreateInfo      deviceCreateInfo{ .pNext = &features, .queueCreateInfoCount = 1, .pQueueCreateInfos = &deviceQueueCreateInfo };
-    deviceCreateInfo.enabledExtensionCount = static_cast<unsigned int>(deviceExtensions.size());
-    deviceCreateInfo.ppEnabledExtensionNames = deviceExtensions.data();
+    vk::DeviceQueueCreateInfo deviceQueueCreateInfo
+    {
+        .queueFamilyIndex = m_gFamilyIndex,
+        .queueCount = 1,
+        .pQueuePriorities = &queuePriority
+    };
+
+    vk::DeviceCreateInfo deviceCreateInfo 
+    {
+        .pNext = &features,
+        .queueCreateInfoCount = 1,
+        .pQueueCreateInfos = &deviceQueueCreateInfo,
+        .enabledExtensionCount = static_cast<unsigned int>(deviceExtensions.size()),
+        .ppEnabledExtensionNames = deviceExtensions.data()
+    };
 
     m_device = vk::raii::Device(m_dGPU, deviceCreateInfo);
     m_graphicsQueue = vk::raii::Queue(m_device, m_gFamilyIndex, 0);

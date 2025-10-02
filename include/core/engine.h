@@ -10,7 +10,7 @@ class Core
 private:
 	std::vector<vk::Image> m_swapChainImages;
 	std::vector<vk::raii::ImageView> swapChainImageViews;
-	vk::raii::Context m_context;
+	vk::raii::Context m_context{};
 	vk::raii::Instance m_instance = nullptr;
 	vk::raii::DebugUtilsMessengerEXT m_debugMessenger = nullptr;
 	vk::raii::Queue m_graphicsQueue = nullptr, m_presentQueue = nullptr;
