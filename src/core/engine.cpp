@@ -67,9 +67,14 @@ void Core::setupLogicalDevice()
     // get the first index into queueFamilyProperties which supports graphics
     auto graphicsQueueFamilyProperty = std::ranges::find_if(queueFamilyProperties, [](auto const& qfp)
         { return (qfp.queueFlags & vk::QueueFlagBits::eGraphics) != static_cast<vk::QueueFlags>(0); });
+
+    // Query surface capabilities, available formats and presentation modes
+    auto surfaceCapabilities = m_dGPU.getSurfaceCapabilitiesKHR(m_surface);
+    std::vector<vk::SurfaceFormatKHR> availableFormats = m_dGPU.getSurfaceFormatsKHR(m_surface);
+    std::vector<vk::PresentModeKHR> availablePresentModes = m_dGPU.getSurfacePresentModesKHR(m_surface);
     
     float queuePriority = 0.0f;
-    unsigned int graphicsIndex = static_cast<uint32_t>(std::distance(queueFamilyProperties.begin(), graphicsQueueFamilyProperty));
+    m_gFamilyIndex = static_cast<uint32_t>(std::distance(queueFamilyProperties.begin(), graphicsQueueFamilyProperty));
 
     // Create a chain of feature structures
     vk::StructureChain<vk::PhysicalDeviceFeatures2, vk::PhysicalDeviceVulkan13Features, vk::PhysicalDeviceExtendedDynamicStateFeaturesEXT> featureChain = {
@@ -87,11 +92,11 @@ void Core::setupLogicalDevice()
 
     // determine a queueFamilyIndex that supports present
     // first check if the graphicsIndex is good enough
-    unsigned int presentIndex = m_dGPU.getSurfaceSupportKHR(graphicsIndex, *m_surface)
-        ? graphicsIndex
+    m_pFamilyIndex = m_dGPU.getSurfaceSupportKHR(m_gFamilyIndex, *m_surface)
+        ? m_gFamilyIndex
         : static_cast<uint32_t>(queueFamilyProperties.size());
 
-    if (presentIndex == queueFamilyProperties.size())
+    if (m_pFamilyIndex == queueFamilyProperties.size())
     {
         // the graphicsIndex doesn't support present -> look for another family index that supports both
         // graphics and present
@@ -100,12 +105,12 @@ void Core::setupLogicalDevice()
             if ((queueFamilyProperties[i].queueFlags & vk::QueueFlagBits::eGraphics) &&
                 m_dGPU.getSurfaceSupportKHR(static_cast<uint32_t>(i), *m_surface))
             {
-                graphicsIndex = static_cast<uint32_t>(i);
-                presentIndex = graphicsIndex;
+                m_gFamilyIndex = static_cast<uint32_t>(i);
+                m_pFamilyIndex = m_gFamilyIndex;
                 break;
             }
         }
-        if (presentIndex == queueFamilyProperties.size())
+        if (m_pFamilyIndex == queueFamilyProperties.size())
         {
             // there's nothing like a single family index that supports both graphics and present -> look for another
             // family index that supports present
@@ -113,13 +118,13 @@ void Core::setupLogicalDevice()
             {
                 if (m_dGPU.getSurfaceSupportKHR(static_cast<uint32_t>(i), *m_surface))
                 {
-                    presentIndex = static_cast<uint32_t>(i);
+                    m_pFamilyIndex = static_cast<uint32_t>(i);
                     break;
                 }
             }
         }
     }
-    if ((graphicsIndex == queueFamilyProperties.size()) || (presentIndex == queueFamilyProperties.size()))
+    if ((m_gFamilyIndex == queueFamilyProperties.size()) || (m_pFamilyIndex == queueFamilyProperties.size()))
     {
         throw std::runtime_error("Could not find a queue for graphics or present -> terminating");
     }
@@ -156,14 +161,14 @@ void Core::setupLogicalDevice()
     features.pNext = &vulkan13Features;
     
     // create a Device
-    vk::DeviceQueueCreateInfo deviceQueueCreateInfo{ .queueFamilyIndex = graphicsIndex, .queueCount = 1, .pQueuePriorities = &queuePriority };
+    vk::DeviceQueueCreateInfo deviceQueueCreateInfo{ .queueFamilyIndex = m_gFamilyIndex, .queueCount = 1, .pQueuePriorities = &queuePriority };
     vk::DeviceCreateInfo      deviceCreateInfo{ .pNext = &features, .queueCreateInfoCount = 1, .pQueueCreateInfos = &deviceQueueCreateInfo };
-    deviceCreateInfo.enabledExtensionCount = deviceExtensions.size();
+    deviceCreateInfo.enabledExtensionCount = static_cast<unsigned int>(deviceExtensions.size());
     deviceCreateInfo.ppEnabledExtensionNames = deviceExtensions.data();
 
     m_device = vk::raii::Device(m_dGPU, deviceCreateInfo);
-    m_graphicsQueue = vk::raii::Queue(m_device, graphicsIndex, 0);
-    m_presentQueue = vk::raii::Queue(m_device, presentIndex, 0);
+    m_graphicsQueue = vk::raii::Queue(m_device, m_gFamilyIndex, 0);
+    m_presentQueue = vk::raii::Queue(m_device, m_pFamilyIndex, 0);
 }
 
 bool Core::suitableDiscreteGPU(const vk::raii::PhysicalDevice& device)
@@ -193,6 +198,97 @@ void Core::createSurface()
     }
     
     m_surface = vk::raii::SurfaceKHR(m_instance, _surface);
+}
+
+void Core::createSwapChain()
+{
+    auto surfaceCapabilities = m_dGPU.getSurfaceCapabilitiesKHR(m_surface);
+    vk::SurfaceFormatKHR swapChainSurfaceFormat = chooseSwapSurfaceFormat(m_dGPU.getSurfaceFormatsKHR(m_surface));
+    vk::Extent2D swapChainExtent = chooseSwapExtent(surfaceCapabilities);
+    auto minImageCount = std::max(3u, surfaceCapabilities.minImageCount);
+    minImageCount = (surfaceCapabilities.maxImageCount > 0 && minImageCount > surfaceCapabilities.maxImageCount) ? surfaceCapabilities.maxImageCount : minImageCount;
+    uint32_t queueFamilyIndices[] = { m_gFamilyIndex, m_pFamilyIndex };
+    uint32_t imageCount = surfaceCapabilities.minImageCount + 1;
+    if (surfaceCapabilities.maxImageCount > 0 && imageCount > surfaceCapabilities.maxImageCount)
+        imageCount = surfaceCapabilities.maxImageCount;
+    const bool sameFamilyIndex = m_gFamilyIndex != m_pFamilyIndex;
+
+
+    vk::SwapchainCreateInfoKHR swapChainCreateInfo {
+        .flags = vk::SwapchainCreateFlagsKHR(), 
+        .surface = m_surface, .minImageCount = minImageCount,
+        .imageFormat = swapChainSurfaceFormat.format, .imageColorSpace = swapChainSurfaceFormat.colorSpace,
+        .imageExtent = swapChainExtent, .imageArrayLayers = 1,
+        .imageUsage = vk::ImageUsageFlagBits::eColorAttachment, .imageSharingMode = sameFamilyIndex ? vk::SharingMode::eConcurrent : vk::SharingMode::eExclusive,
+        .queueFamilyIndexCount = sameFamilyIndex ? static_cast<unsigned int>(2) : 0, .pQueueFamilyIndices = sameFamilyIndex ? queueFamilyIndices : nullptr,
+        .preTransform = surfaceCapabilities.currentTransform, .compositeAlpha = vk::CompositeAlphaFlagBitsKHR::eOpaque,
+        .presentMode = chooseSwapPresentMode(m_dGPU.getSurfacePresentModesKHR(m_surface)),
+        .clipped = true, .oldSwapchain = nullptr 
+    };
+
+    m_swapChain = vk::raii::SwapchainKHR(m_device, swapChainCreateInfo);
+    m_swapChainImages = m_swapChain.getImages();
+    m_swapChainSurfaceFormat = swapChainSurfaceFormat.format;
+    m_swapChainExtent = m_swapChainExtent;
+}
+
+void Core::createImageViews()
+{
+    swapChainImageViews.clear();
+
+    vk::ImageViewCreateInfo imageViewCreateInfo{ .viewType = vk::ImageViewType::e2D, .format = m_swapChainSurfaceFormat,
+      .subresourceRange = { vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1 } };
+
+    imageViewCreateInfo.components.r = vk::ComponentSwizzle::eIdentity;
+    imageViewCreateInfo.components.g = vk::ComponentSwizzle::eIdentity;
+    imageViewCreateInfo.components.b = vk::ComponentSwizzle::eIdentity;
+    imageViewCreateInfo.components.a = vk::ComponentSwizzle::eIdentity;
+
+    imageViewCreateInfo.subresourceRange.aspectMask = vk::ImageAspectFlagBits::eColor;
+    imageViewCreateInfo.subresourceRange.baseMipLevel = 0;
+    imageViewCreateInfo.subresourceRange.levelCount = 1;
+    imageViewCreateInfo.subresourceRange.baseArrayLayer = 0;
+    imageViewCreateInfo.subresourceRange.layerCount = 1;
+
+    for (auto& image : m_swapChainImages) {
+        imageViewCreateInfo.image = image;
+        swapChainImageViews.emplace_back(m_device, imageViewCreateInfo);
+    }
+}
+
+vk::SurfaceFormatKHR Core::chooseSwapSurfaceFormat(const std::vector<vk::SurfaceFormatKHR>& availableFormats) 
+{
+    for (const auto& availableFormat : availableFormats) {
+        if (availableFormat.format == vk::Format::eB8G8R8A8Srgb && availableFormat.colorSpace == vk::ColorSpaceKHR::eSrgbNonlinear) {
+            return availableFormat;
+        }
+    }
+    return availableFormats[0];
+}
+
+vk::PresentModeKHR Core::chooseSwapPresentMode(const std::vector<vk::PresentModeKHR>& availablePresentModes) \
+{
+    for (const auto& availablePresentMode : availablePresentModes) {
+        if (availablePresentMode == vk::PresentModeKHR::eMailbox) {
+            return availablePresentMode;
+        }
+    }
+    return vk::PresentModeKHR::eFifo;
+}
+
+vk::Extent2D Core::chooseSwapExtent(const vk::SurfaceCapabilitiesKHR& capabilities)
+{
+    if (capabilities.currentExtent.width != std::numeric_limits<uint32_t>::max()) {
+        return capabilities.currentExtent;
+    }
+    int width, height;
+    
+    SDL_GetWindowSizeInPixels(mp_window->GetWindow(), &width, &height);
+
+    return {
+        std::clamp<uint32_t>(width, capabilities.minImageExtent.width, capabilities.maxImageExtent.width),
+        std::clamp<uint32_t>(height, capabilities.minImageExtent.height, capabilities.maxImageExtent.height)
+    };
 }
 
 Core& Core::GetInstance()
@@ -301,10 +397,11 @@ void Core::init()
 #ifndef NDEBUG
         setupDebugMessenger();
 #endif
-
-        selectPhysicalDevices();
         createSurface();
+        selectPhysicalDevices();
         setupLogicalDevice();
+        createSwapChain();
+        createImageViews();
     }
     catch (const vk::SystemError& err) {
         std::cerr << "Vulkan error: " << err.what() << std::endl;
