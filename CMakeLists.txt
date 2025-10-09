@@ -1,6 +1,7 @@
 ﻿# CMakeList.txt : CMake project for TheWheel, include source and define
 # project specific logic here.
 #
+include(src/cmake/compile_shaders.cmake)
 cmake_minimum_required (VERSION 3.28)
 
 # Enable Hot Reload for MSVC compilers if supported.
@@ -28,6 +29,9 @@ find_package(Vulkan REQUIRED)
 find_package(SDL3 CONFIG REQUIRED)
 find_package(glm CONFIG REQUIRED)
 find_package(imgui CONFIG REQUIRED)
+
+find_program(SLANGC_EXECUTABLE NAMES slangc REQUIRED)
+message(STATUS "Using Slang compiler: ${SLANGC_EXECUTABLE}")
 
 # Add .cpp and .h files recursively
 file(GLOB_RECURSE SRC_FILES "${CMAKE_SOURCE_DIR}/src/*.cpp" "${CMAKE_SOURCE_DIR}/include/*.h")
@@ -59,5 +63,11 @@ imgui::imgui
 if (CMAKE_VERSION VERSION_GREATER 3.12)
   set_property(TARGET TheWheel PROPERTY CXX_STANDARD 20)
 endif()
+
+set(OUT_DIR ${CMAKE_BINARY_DIR}/shaders)
+file(MAKE_DIRECTORY ${OUT_DIR})
+
+add_slang_shader_target(COMPILED_SHADER SOURCES ${CMAKE_SOURCE_DIR}/src/shaders/triangle.slang)
+add_dependencies(TheWheel COMPILED_SHADER)
 
 # TODO: Add tests and install targets if needed.
