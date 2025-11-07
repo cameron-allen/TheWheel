@@ -64,7 +64,7 @@ if (CMAKE_VERSION VERSION_GREATER 3.12)
   set_property(TARGET TheWheel PROPERTY CXX_STANDARD 20)
 endif()
 
-set(OUT_DIR ${CMAKE_BINARY_DIR}/shaders)
+set(OUT_DIR ${CMAKE_BINARY_DIR}/../../shaders)
 file(MAKE_DIRECTORY ${OUT_DIR})
 
 add_slang_shader_target(COMPILED_SHADER SOURCES ${CMAKE_SOURCE_DIR}/src/shaders/triangle.slang)
