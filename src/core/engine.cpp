@@ -105,7 +105,7 @@ void Core::setupLogicalDevice()
         }
         if (m_pFamilyIndex == queueFamilyProperties.size())
         {
-            // there's nothing like a single family index that supports both graphics and present -> look for another
+            // if there's nothing isn't a single family index that supports both graphics and present -> look for another
             // family index that supports present
             for (size_t i = 0; i < queueFamilyProperties.size(); i++)
             {
@@ -236,6 +236,126 @@ void Core::createImageViews()
         imageViewCreateInfo.image = image;
         swapChainImageViews.emplace_back(m_device, imageViewCreateInfo);
     }
+}
+
+void Core::createGraphicsPipeline()
+{
+    std::cerr << "File src: " << __FILE__ << std::endl;
+    
+    vk::raii::ShaderModule vertModule = createShaderModule(ReadFile("..\\..\\..\\out\\shaders\\triangle.vert.spv")),
+                           fragModule = createShaderModule(ReadFile("..\\..\\..\\out\\shaders\\triangle.frag.spv"));
+
+    vk::PipelineShaderStageCreateInfo vertShaderStageInfo{ 
+        .stage = vk::ShaderStageFlagBits::eVertex, 
+        .module = vertModule,  
+        .pName = "vertMain" 
+    };
+
+    vk::PipelineShaderStageCreateInfo fragShaderStageInfo{ 
+        .stage = vk::ShaderStageFlagBits::eFragment, 
+        .module = fragModule, 
+        .pName = "fragMain" 
+    };
+
+    vk::PipelineShaderStageCreateInfo shaderStages[] = { vertShaderStageInfo, fragShaderStageInfo };
+
+    std::vector dynamicStates = {
+        vk::DynamicState::eViewport,
+        vk::DynamicState::eScissor
+    };
+
+    vk::PipelineDynamicStateCreateInfo dynamicState{ 
+        .dynamicStateCount = static_cast<uint32_t>(dynamicStates.size()), 
+        .pDynamicStates = dynamicStates.data() 
+    };
+
+    
+    vk::PipelineVertexInputStateCreateInfo vertexInputInfo{};
+    vk::PipelineInputAssemblyStateCreateInfo inputAssembly{ 
+        .topology = vk::PrimitiveTopology::eTriangleList 
+    };
+
+    vk::PipelineViewportStateCreateInfo viewportState{ 
+        .viewportCount = 1, 
+        .scissorCount = 1 
+    };
+
+    vk::PipelineRasterizationStateCreateInfo rasterizer{ 
+        .depthClampEnable = vk::False, 
+        .rasterizerDiscardEnable = vk::False,
+        .polygonMode = vk::PolygonMode::eFill, 
+        .cullMode = vk::CullModeFlagBits::eBack,
+        .frontFace = vk::FrontFace::eClockwise, 
+        .depthBiasEnable = vk::False,
+        .depthBiasSlopeFactor = 1.0f, 
+        .lineWidth = 1.0f 
+    };
+
+    // Useful for antialiasing
+    vk::PipelineMultisampleStateCreateInfo multisampling{ 
+        .rasterizationSamples = vk::SampleCountFlagBits::e1, 
+        .sampleShadingEnable = vk::False 
+    };
+
+    vk::PipelineColorBlendAttachmentState colorBlendAttachment{
+        .blendEnable = vk::True,
+        .srcColorBlendFactor = vk::BlendFactor::eSrcAlpha,
+        .dstColorBlendFactor = vk::BlendFactor::eOneMinusSrcAlpha,
+        .colorBlendOp = vk::BlendOp::eAdd,
+        .srcAlphaBlendFactor = vk::BlendFactor::eOne,
+        .dstAlphaBlendFactor = vk::BlendFactor::eZero,
+        .alphaBlendOp = vk::BlendOp::eAdd
+    };
+
+    /*colorBlendAttachment.blendEnable = vk::True;
+    colorBlendAttachment.srcColorBlendFactor = vk::BlendFactor::eSrcAlpha;
+    colorBlendAttachment.dstColorBlendFactor = vk::BlendFactor::eOneMinusSrcAlpha;
+    colorBlendAttachment.colorBlendOp = vk::BlendOp::eAdd;
+    colorBlendAttachment.srcAlphaBlendFactor = vk::BlendFactor::eOne;
+    colorBlendAttachment.dstAlphaBlendFactor = vk::BlendFactor::eZero;
+    colorBlendAttachment.alphaBlendOp = vk::BlendOp::eAdd;*/
+
+    vk::PipelineColorBlendStateCreateInfo colorBlending{ 
+        .logicOpEnable = vk::False, 
+        .logicOp = vk::LogicOp::eCopy, 
+        .attachmentCount = 1, 
+        .pAttachments = &colorBlendAttachment 
+    };
+
+    // For uniforms
+    vk::raii::PipelineLayout pipelineLayout = nullptr;
+    vk::PipelineLayoutCreateInfo pipelineLayoutInfo{ 
+        .setLayoutCount = 0, 
+        .pushConstantRangeCount = 0 
+    };
+    pipelineLayout = vk::raii::PipelineLayout(m_device, pipelineLayoutInfo);
+
+
+    vk::PipelineRenderingCreateInfo pipelineRenderingCreateInfo{ .colorAttachmentCount = 1, .pColorAttachmentFormats = &m_swapChainSurfaceFormat };
+    vk::GraphicsPipelineCreateInfo pipelineInfo{ 
+        .pNext = &pipelineRenderingCreateInfo,
+        .stageCount = 2, .pStages = shaderStages,
+        .pVertexInputState = &vertexInputInfo, .pInputAssemblyState = &inputAssembly,
+        .pViewportState = &viewportState, .pRasterizationState = &rasterizer,
+        .pMultisampleState = &multisampling, .pColorBlendState = &colorBlending,
+        .pDynamicState = &dynamicState, .layout = pipelineLayout, .renderPass = nullptr ,
+        .basePipelineHandle = VK_NULL_HANDLE, .basePipelineIndex = -1
+    };
+
+    //pipelineInfo.basePipelineHandle = VK_NULL_HANDLE; // Optional
+    //pipelineInfo.basePipelineIndex = -1; // Optional
+
+    m_graphicsPipeline = vk::raii::Pipeline(m_device, nullptr, pipelineInfo);
+}
+
+vk::raii::ShaderModule Core::createShaderModule(const std::vector<char>& code) const
+{
+    vk::ShaderModuleCreateInfo createInfo{ 
+        .codeSize = code.size() * sizeof(char), 
+        .pCode = reinterpret_cast<const uint32_t*>(code.data()) 
+    };
+
+    return vk::raii::ShaderModule{ m_device, createInfo };
 }
 
 vk::SurfaceFormatKHR Core::chooseSwapSurfaceFormat(const std::vector<vk::SurfaceFormatKHR>& availableFormats) 
@@ -384,6 +504,7 @@ void Core::init()
         setupLogicalDevice();
         createSwapChain();
         createImageViews();
+        createGraphicsPipeline();
     }
     catch (const vk::SystemError& err) {
         std::cerr << "Vulkan error: " << err.what() << std::endl;

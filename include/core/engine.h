@@ -16,6 +16,7 @@ private:
 	vk::raii::Queue m_graphicsQueue = nullptr, m_presentQueue = nullptr;
 	vk::raii::Device m_device = nullptr;
 	vk::raii::PhysicalDevice m_dGPU = nullptr;
+	vk::raii::Pipeline m_graphicsPipeline = nullptr;
 	vk::raii::SurfaceKHR m_surface = nullptr; 
 	vk::raii::SwapchainKHR m_swapChain = nullptr;
 	vk::Format m_swapChainSurfaceFormat = vk::Format::eUndefined;
@@ -41,6 +42,10 @@ private:
 	void createSwapChain();
 	//@brief Creates image views
 	void createImageViews();
+	//@brief Creates graphics pipeline
+	void createGraphicsPipeline();
+
+	[[nodiscard]] vk::raii::ShaderModule createShaderModule(const std::vector<char>& code) const;
 
 	//@brief Chooses swap chain surface format
 	vk::SurfaceFormatKHR chooseSwapSurfaceFormat(const std::vector<vk::SurfaceFormatKHR>& availableFormats);
