@@ -1,9 +1,36 @@
 #include "pch.h"
+#include <SDL3/SDL.h>
+#include <SDL3/SDL_vulkan.h>
 #include "core/window.h"
 #include "core/engine.h"
-#include <Windows.h>
+#include "core/event_handler.h"
 
-void SDLWindow::init() 
+bool SDLWindow::m_open = false;
+
+void SDLWindow::PressKeyCallback(SDL_Event* event)
+{
+    switch(event->key.key) 
+    {
+    case SDLK_ESCAPE:
+        m_open = false;
+        break;
+    default:
+        break;
+    }
+}
+
+void SDLWindow::ResizeWindowCallback(SDL_Event* event)
+{
+    Core::m_framebufferResized = true;
+    std::cout << event->window.data1 << " " << event->window.data2 << std::endl;
+}
+
+void SDLWindow::QuitCallback(SDL_Event* event)
+{
+    m_open = false;
+}
+
+void SDLWindow::init()
 {
     // Initialize SDL (video subsystem only)
     if (!SDL_Init(SDL_INIT_VIDEO)) {
@@ -28,7 +55,9 @@ void SDLWindow::init()
     m_open = true;
     mp_event = new SDL_Event();
 
-    // SDL_RegisterEvents(Uint32 events), SDL_PushEvent(SDL_Event* event);
+    EventHandler::SubToEvent(SDL_EVENT_KEY_DOWN, PressKeyCallback);
+    EventHandler::SubToEvent(SDL_EVENT_WINDOW_RESIZED, ResizeWindowCallback);
+    EventHandler::SubToEvent(SDL_EVENT_QUIT, QuitCallback);
 }
 
 void SDLWindow::clean() 
@@ -42,7 +71,7 @@ void SDLWindow::checkEvents()
 {
     while (SDL_PollEvent(mp_event))
     {
-        switch(mp_event->type)
+        /*switch(mp_event->type)
         {
         case SDL_EVENT_QUIT:
             close();
@@ -64,6 +93,8 @@ void SDLWindow::checkEvents()
             break;
         default:
             break;
-        }
+        }*/
+
+        EventHandler::InvokeEventSubs(mp_event);
     }
 }
