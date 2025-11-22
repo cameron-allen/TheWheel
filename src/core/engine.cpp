@@ -259,7 +259,19 @@ void Core::createSwapChain()
 
 void Core::recreateSwapChain()
 {
+    int w, h;
+    SDL_GetWindowSize(mp_window->GetWindow(), &w, &h);
+    
+    while (w == 0 || h == 0) 
+    {
+        SDL_GetWindowSize(mp_window->GetWindow(), &w, &h);
+        SDL_Event e;
+        SDL_WaitEvent(&e);
+    }
+
     m_device.waitIdle();
+
+    cleanSwapChain();
     createSwapChain();
     createImageViews();
 }
