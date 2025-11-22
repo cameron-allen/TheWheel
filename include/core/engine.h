@@ -7,6 +7,8 @@ class SDLWindow;
 //@brief Contains core engine logic
 class Core 
 {
+	friend class SDLWindow;
+
 private:
 	std::vector<vk::Image> m_swapChainImages;
 	std::vector<vk::raii::ImageView> m_swapChainImageViews;
@@ -34,6 +36,7 @@ private:
 	uint32_t m_semaphoreIndex = 0;
 	
 	static Core* mp_instance;
+	static bool m_framebufferResized;
 
 	//@brief Transition image layout to specified params
 	void transitionImageLayout(
@@ -91,8 +94,6 @@ private:
 	vk::Extent2D chooseSwapExtent(const vk::SurfaceCapabilitiesKHR& capabilities);
 
 public:
-	static bool m_framebufferResized;
-
 	//@brief Gets static instance
 	static Core& GetInstance();
 	//@brief Retrieves required Vulkan extensions
