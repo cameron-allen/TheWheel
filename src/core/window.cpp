@@ -1,5 +1,6 @@
 #include "pch.h"
 #include "core/window.h"
+#include "core/engine.h"
 #include <Windows.h>
 
 void SDLWindow::init() 
@@ -24,9 +25,10 @@ void SDLWindow::init()
         throw SDL_GetError();
     }
 
-    // Simple loop to keep window open until close event
     m_open = true;
     mp_event = new SDL_Event();
+
+    // SDL_RegisterEvents(Uint32 events), SDL_PushEvent(SDL_Event* event);
 }
 
 void SDLWindow::clean() 
@@ -40,7 +42,28 @@ void SDLWindow::checkEvents()
 {
     while (SDL_PollEvent(mp_event))
     {
-        if (mp_event->type == SDL_EVENT_QUIT)
+        switch(mp_event->type)
+        {
+        case SDL_EVENT_QUIT:
             close();
+            break;
+        case SDL_EVENT_WINDOW_RESIZED:
+            Core::m_framebufferResized = true;
+            std::cout << mp_event->window.data1 << " " << mp_event->window.data2 << std::endl;
+            break;
+        case SDL_EVENT_KEY_UP:
+            switch(mp_event->key.key) 
+            {
+            case SDLK_ESCAPE:
+                if (mp_event->key.key == SDLK_ESCAPE)
+                    close();
+                break;
+            default:
+                break;
+            }
+            break;
+        default:
+            break;
+        }
     }
 }
