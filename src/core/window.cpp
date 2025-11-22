@@ -71,30 +71,6 @@ void SDLWindow::checkEvents()
 {
     while (SDL_PollEvent(mp_event))
     {
-        /*switch(mp_event->type)
-        {
-        case SDL_EVENT_QUIT:
-            close();
-            break;
-        case SDL_EVENT_WINDOW_RESIZED:
-            Core::m_framebufferResized = true;
-            std::cout << mp_event->window.data1 << " " << mp_event->window.data2 << std::endl;
-            break;
-        case SDL_EVENT_KEY_UP:
-            switch(mp_event->key.key) 
-            {
-            case SDLK_ESCAPE:
-                if (mp_event->key.key == SDLK_ESCAPE)
-                    close();
-                break;
-            default:
-                break;
-            }
-            break;
-        default:
-            break;
-        }*/
-
         EventHandler::InvokeEventSubs(mp_event);
     }
 }
