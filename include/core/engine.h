@@ -83,7 +83,7 @@ private:
 	void recordCommandBuffer(uint32_t imageIndex);
 
 	//@brief Encapsulates code into a vk::raii::ShaderModule object
-	//@param binary data from compiled .slang file (i.e. .spv file)
+	//@param code:	binary data from compiled .slang file (i.e. .spv file)
 	[[nodiscard]] vk::raii::ShaderModule createShaderModule(const std::vector<char>& code) const;
 
 	//@brief Chooses swap chain surface format

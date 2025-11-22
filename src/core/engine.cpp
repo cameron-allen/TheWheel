@@ -1,6 +1,10 @@
 #include "pch.h"
 #include "core/engine.h"
+
+#include <SDL3/SDL.h>
+#include <SDL3/SDL_vulkan.h>
 #include "core/window.h"
+
 
 // More info for Vulkan debug configuration at the bottom of this page:
 // https://docs.vulkan.org/tutorial/latest/03_Drawing_a_triangle/00_Setup/02_Validation_layers.html
@@ -220,9 +224,9 @@ bool Core::suitableDiscreteGPU(const vk::raii::PhysicalDevice& device)
 
 void Core::createSurface()
 {
-    VkSurfaceKHR       _surface;
+    VkSurfaceKHR _surface;
 
-    if (!SDL_Vulkan_CreateSurface(mp_window->GetWindow(),
+    if (!SDL_Vulkan_CreateSurface(mp_window->getWindow(),
         static_cast<VkInstance>(*m_instance),
         nullptr,
         &_surface)) {
@@ -260,11 +264,11 @@ void Core::createSwapChain()
 void Core::recreateSwapChain()
 {
     int w, h;
-    SDL_GetWindowSize(mp_window->GetWindow(), &w, &h);
+    SDL_GetWindowSize(mp_window->getWindow(), &w, &h);
     
     while (w == 0 || h == 0) 
     {
-        SDL_GetWindowSize(mp_window->GetWindow(), &w, &h);
+        SDL_GetWindowSize(mp_window->getWindow(), &w, &h);
         SDL_Event e;
         SDL_WaitEvent(&e);
     }
@@ -545,7 +549,7 @@ vk::Extent2D Core::chooseSwapExtent(const vk::SurfaceCapabilitiesKHR& capabiliti
     }
     int width, height;
     
-    SDL_GetWindowSizeInPixels(mp_window->GetWindow(), &width, &height);
+    SDL_GetWindowSizeInPixels(mp_window->getWindow(), &width, &height);
 
     return {
         std::clamp<uint32_t>(width, capabilities.minImageExtent.width, capabilities.maxImageExtent.width),
@@ -555,6 +559,7 @@ vk::Extent2D Core::chooseSwapExtent(const vk::SurfaceCapabilitiesKHR& capabiliti
 
 Core& Core::GetInstance()
 {
+    
     if (!mp_instance)
         mp_instance = new Core();
     return *mp_instance;
