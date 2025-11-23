@@ -35,7 +35,7 @@ message(STATUS "Using Slang compiler: ${SLANGC_EXECUTABLE}")
 
 # Add .cpp and .h files recursively
 file(GLOB_RECURSE SRC_FILES "${CMAKE_SOURCE_DIR}/src/*.cpp" "${CMAKE_SOURCE_DIR}/include/*.h")
-add_executable(TheWheel ${SRC_FILES} "include/core/engine.h" "src/core/engine.cpp" "include/core/window.h" "src/core/window.cpp" "include/core/event_handler.h" "src/core/event_handler.cpp")
+add_executable(TheWheel ${SRC_FILES})
 
 # Link directories
 target_include_directories(TheWheel PRIVATE 
