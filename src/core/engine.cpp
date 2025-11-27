@@ -5,14 +5,19 @@
 #include <SDL3/SDL_vulkan.h>
 #include "core/window.h"
 
+#include "core/geometry/mesh.h"
+
+Mesh triangle
+{{
+    {{0.0f, -0.5f}, {1.0f, 1.0f, 1.0f}},
+    {{0.5f, 0.5f}, {0.0f, 1.0f, 0.0f}},
+    {{-0.5f, 0.5f}, {0.0f, 0.0f, 1.0f}}
+}};
 
 // More info for Vulkan debug configuration at the bottom of this page:
 // https://docs.vulkan.org/tutorial/latest/03_Drawing_a_triangle/00_Setup/02_Validation_layers.html
 
 constexpr int MAX_FRAMES_IN_FLIGHT = 2;
-
-Core* Core::mp_instance = nullptr;
-bool Core::m_framebufferResized = false;
 
 const std::vector<const char*> VALIDATION_LAYERS = {
     "VK_LAYER_KHRONOS_validation"
@@ -65,7 +70,6 @@ void Core::transitionImageLayout(
         .imageMemoryBarrierCount = 1,
         .pImageMemoryBarriers = &barrier
     };
-    // MAYBE
     m_commandBuffers[m_currentFrame].pipelineBarrier2(dependencyInfo);
 }
 
@@ -342,7 +346,15 @@ void Core::createGraphicsPipeline()
         .pDynamicStates = dynamicStates.data() 
     };
 
-    vk::PipelineVertexInputStateCreateInfo vertexInputInfo{};
+    auto bindingDescription = Vertex::getBindingDesc();
+    auto attributeDescriptions = Vertex::getAttribDesc();
+    vk::PipelineVertexInputStateCreateInfo vertexInputInfo{
+        .vertexBindingDescriptionCount = 1, 
+        .pVertexBindingDescriptions = &bindingDescription,
+        .vertexAttributeDescriptionCount = 2, 
+        .pVertexAttributeDescriptions = &attributeDescriptions.first
+    };
+    
     vk::PipelineInputAssemblyStateCreateInfo inputAssembly{ 
         .topology = vk::PrimitiveTopology::eTriangleList 
     };
@@ -461,6 +473,12 @@ void Core::createSyncObjects()
     }
 }
 
+void Core::createMeshes()
+{
+    m_pDMemoryProperties = m_dGPU.getMemoryProperties();
+    triangle.init(m_device);
+}
+
 void Core::recordCommandBuffer(uint32_t imageIndex)
 {
     m_commandBuffers[m_currentFrame].begin({});
@@ -495,6 +513,7 @@ void Core::recordCommandBuffer(uint32_t imageIndex)
     m_commandBuffers[m_currentFrame].bindPipeline(vk::PipelineBindPoint::eGraphics, *m_graphicsPipeline);
     m_commandBuffers[m_currentFrame].setViewport(0, vk::Viewport(0.0f, 0.0f, static_cast<float>(m_swapChainExtent.width), static_cast<float>(m_swapChainExtent.height), 0.0f, 1.0f));
     m_commandBuffers[m_currentFrame].setScissor(0, vk::Rect2D(vk::Offset2D(0, 0), m_swapChainExtent));
+    m_commandBuffers[m_currentFrame].bindVertexBuffers(0, triangle.getVertexBuffer(), {0});
     m_commandBuffers[m_currentFrame].draw(3, 1, 0, 0);
     m_commandBuffers[m_currentFrame].endRendering();
     
@@ -741,6 +760,7 @@ void Core::init()
         createImageViews();
         createGraphicsPipeline();
         createCommandPool();
+        createMeshes();
         createCommandBuffers();
         createSyncObjects();
     }

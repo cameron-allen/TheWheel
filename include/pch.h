@@ -10,6 +10,7 @@ constexpr bool DISPLAY_VULKAN_INFO = true;
 #include <vector>
 #include <fstream>
 #include <unordered_map>
+#include <utility>
 
 static std::vector<char> ReadFile(const std::string& filename) {
     std::ifstream file(filename, std::ios::ate | std::ios::binary);

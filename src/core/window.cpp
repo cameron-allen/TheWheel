@@ -21,7 +21,7 @@ void SDLWindow::PressKeyCallback(SDL_Event* event)
 
 void SDLWindow::ResizeWindowCallback(SDL_Event* event)
 {
-    Core::m_framebufferResized = true;
+    Core::GetInstance().setFramebufferResized(true);
     std::cout << event->window.data1 << " " << event->window.data2 << std::endl;
 }
 

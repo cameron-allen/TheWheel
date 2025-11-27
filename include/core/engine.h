@@ -10,6 +10,7 @@ class Core
 	friend class SDLWindow;
 
 private:
+	vk::PhysicalDeviceMemoryProperties m_pDMemoryProperties;
 	std::vector<vk::Image> m_swapChainImages;
 	std::vector<vk::raii::ImageView> m_swapChainImageViews;
 	std::vector<vk::raii::CommandBuffer> m_commandBuffers;
@@ -29,14 +30,15 @@ private:
 
 	vk::Format m_swapChainSurfaceFormat = vk::Format::eUndefined;
 	vk::Extent2D m_swapChainExtent;
-	SDLWindow* mp_window;
+	SDLWindow* mp_window = nullptr;
 	//			 graphics			 present
 	uint32_t m_gFamilyIndex = 0, m_pFamilyIndex = 0;
 	uint32_t m_currentFrame = 0;
 	uint32_t m_semaphoreIndex = 0;
+
+	bool m_framebufferResized = false;
 	
-	static Core* mp_instance;
-	static bool m_framebufferResized;
+	static inline Core* mp_instance = nullptr;
 
 	//@brief Transition image layout to specified params
 	void transitionImageLayout(
@@ -79,6 +81,8 @@ private:
 	//@brief Initializes rendering semaphores and fences
 	void createSyncObjects();
 
+	void createMeshes();
+
 	//@brief Writes commands into vk::raii::CommandBuffer
 	void recordCommandBuffer(uint32_t imageIndex);
 
@@ -97,16 +101,25 @@ public:
 	//@brief Gets static instance
 	static Core& GetInstance();
 	//@brief Retrieves required Vulkan extensions
-	static std::vector<const char*> GetRequiredExtensions();
+	std::vector<const char*> GetRequiredExtensions();
 
 	//@brief Runs engine
 	void run();
 	//@brief Executes rendering logic called each frame
 	void draw();
-	//@brief Inits data members
+	//@brief Initializes data members
 	void init();
 	//@brief Core engine loop
 	void loop();
 	//@brief Cleans engine data members
 	void clean();
+
+	const vk::PhysicalDeviceMemoryProperties& getGPUMemoryProperties() const
+	{ return m_pDMemoryProperties; }
+
+	bool getFramebufferResized() const 
+	{ return m_framebufferResized; }
+
+	void setFramebufferResized(bool state) 
+	{ m_framebufferResized = state; }
 };
