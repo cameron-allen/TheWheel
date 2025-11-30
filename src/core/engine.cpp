@@ -118,18 +118,40 @@ void Core::setupLogicalDevice()
     const float defPriority = 1.0f;
     unsigned int queueIndices[3] = { 0, 0, 0 };
     unsigned int currQueueIndex = 1;
-    
-    // get the first index into queueFamilyProperties which supports graphics
-    auto graphicsQueueFamilyProperty = std::ranges::find_if(queueFamilyProperties, [](auto const& qfp)
-        { return (qfp.queueFlags & vk::QueueFlagBits::eGraphics) != static_cast<vk::QueueFlags>(0); });
+    bool foundGraphicsBit = false;
 
+    m_gFamilyIndex = m_pFamilyIndex = m_cFamilyIndex = m_tFamilyIndex = queueFamilyProperties.size();
+    
     // Query surface capabilities, available formats and presentation modes
     auto surfaceCapabilities = m_dGPU.getSurfaceCapabilitiesKHR(m_surface);
     std::vector<vk::SurfaceFormatKHR> availableFormats = m_dGPU.getSurfaceFormatsKHR(m_surface);
     std::vector<vk::PresentModeKHR> availablePresentModes = m_dGPU.getSurfacePresentModesKHR(m_surface);
-    
-    m_gFamilyIndex = static_cast<uint32_t>(std::distance(queueFamilyProperties.begin(), graphicsQueueFamilyProperty));
-    m_pFamilyIndex = m_tFamilyIndex = queueFamilyProperties.size();
+
+    // Find graphics, compute, and transfer queue index
+    for (size_t i = 0; i < queueFamilyProperties.size(); i++)
+    {
+        if (!(queueFamilyProperties[i].queueFlags & vk::QueueFlagBits::eGraphics))
+        {
+            if (queueFamilyProperties[i].queueFlags & vk::QueueFlagBits::eCompute)
+            {
+                m_cFamilyIndex = i;
+            }
+            else if (queueFamilyProperties[i].queueFlags & vk::QueueFlagBits::eTransfer)
+            {
+                m_tFamilyIndex = i;
+            }
+        }
+        else if (!foundGraphicsBit)
+        {
+            foundGraphicsBit = true;
+            m_gFamilyIndex = i;
+        }
+    }
+
+    if (m_gFamilyIndex == queueFamilyProperties.size())
+    {
+        throw std::runtime_error("Could not find a queue for graphics -> terminating");
+    }
 
     // Create a chain of feature structures
     vk::StructureChain<vk::PhysicalDeviceFeatures2, vk::PhysicalDeviceVulkan13Features, vk::PhysicalDeviceExtendedDynamicStateFeaturesEXT> featureChain = {
@@ -148,15 +170,15 @@ void Core::setupLogicalDevice()
 
     // determine a queueFamilyIndex that supports present
     // first check if the graphicsIndex is good enough
-    m_pFamilyIndex = m_dGPU.getSurfaceSupportKHR(m_gFamilyIndex, *m_surface)
-        ? m_gFamilyIndex
-        : static_cast<uint32_t>(queueFamilyProperties.size());
+    if (m_dGPU.getSurfaceSupportKHR(m_gFamilyIndex, *m_surface))
+        m_pFamilyIndex = m_gFamilyIndex;
 
     if (m_pFamilyIndex == queueFamilyProperties.size())
     {
         // the graphicsIndex doesn't support present -> look for another family index that supports both
         // graphics and present
-        for (size_t i = 0; i < queueFamilyProperties.size(); i++)
+        for (size_t i = m_gFamilyIndex == queueFamilyProperties.size() ? 0 : m_gFamilyIndex + 1; 
+            i < queueFamilyProperties.size(); i++)
         {
             if ((queueFamilyProperties[i].queueFlags & vk::QueueFlagBits::eGraphics) &&
                 m_dGPU.getSurfaceSupportKHR(static_cast<uint32_t>(i), *m_surface))
@@ -168,7 +190,7 @@ void Core::setupLogicalDevice()
         }
         if (m_pFamilyIndex == queueFamilyProperties.size())
         {
-            // if there's nothing isn't a single family index that supports both graphics and present -> look for another
+            // if there isn't a single family index that supports both graphics and present -> look for another
             // family index that supports present
             for (size_t i = 0; i < queueFamilyProperties.size(); i++)
             {
@@ -187,27 +209,11 @@ void Core::setupLogicalDevice()
         .pQueuePriorities = queuePriorities
     });
 
-    if ((m_gFamilyIndex == queueFamilyProperties.size()) || (m_pFamilyIndex == queueFamilyProperties.size()))
+    if (m_pFamilyIndex == queueFamilyProperties.size())
     {
-        throw std::runtime_error("Could not find a queue for graphics or present -> terminating");
+        throw std::runtime_error("Could not find a queue for present -> terminating");
     }
 
-    // Find transfer and compute queue index
-    for (size_t i = 0; i < queueFamilyProperties.size(); i++) 
-    {
-        if (i != m_gFamilyIndex &&
-            !(queueFamilyProperties[i].queueFlags & vk::QueueFlagBits::eGraphics))
-        {
-            if (queueFamilyProperties[i].queueFlags & vk::QueueFlagBits::eCompute)
-            {
-                m_cFamilyIndex = i;
-            }
-            else if (queueFamilyProperties[i].queueFlags & vk::QueueFlagBits::eTransfer) 
-            {
-                m_tFamilyIndex = i;
-            }
-        }
-    }
     if (m_pFamilyIndex == m_gFamilyIndex) 
     {
         queueIndices[0] = currQueueIndex;
