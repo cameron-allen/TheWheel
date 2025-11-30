@@ -120,7 +120,8 @@ void Core::setupLogicalDevice()
     unsigned int currQueueIndex = 1;
     bool foundGraphicsBit = false;
 
-    m_gFamilyIndex = m_pFamilyIndex = m_cFamilyIndex = m_tFamilyIndex = queueFamilyProperties.size();
+    m_familyIndices[QType::Graphics] = m_familyIndices[QType::Compute] = 
+        m_familyIndices[QType::Transfer] = m_familyIndices[QType::Present] = queueFamilyProperties.size();
     
     // Query surface capabilities, available formats and presentation modes
     auto surfaceCapabilities = m_dGPU.getSurfaceCapabilitiesKHR(m_surface);
@@ -134,21 +135,21 @@ void Core::setupLogicalDevice()
         {
             if (queueFamilyProperties[i].queueFlags & vk::QueueFlagBits::eCompute)
             {
-                m_cFamilyIndex = i;
+                m_familyIndices[QType::Compute] = i;
             }
             else if (queueFamilyProperties[i].queueFlags & vk::QueueFlagBits::eTransfer)
             {
-                m_tFamilyIndex = i;
+                m_familyIndices[QType::Transfer] = i;
             }
         }
         else if (!foundGraphicsBit)
         {
             foundGraphicsBit = true;
-            m_gFamilyIndex = i;
+            m_familyIndices[QType::Graphics] = i;
         }
     }
 
-    if (m_gFamilyIndex == queueFamilyProperties.size())
+    if (m_familyIndices[QType::Graphics] == queueFamilyProperties.size())
     {
         throw std::runtime_error("Could not find a queue for graphics -> terminating");
     }
@@ -170,25 +171,25 @@ void Core::setupLogicalDevice()
 
     // determine a queueFamilyIndex that supports present
     // first check if the graphicsIndex is good enough
-    if (m_dGPU.getSurfaceSupportKHR(m_gFamilyIndex, *m_surface))
-        m_pFamilyIndex = m_gFamilyIndex;
+    if (m_dGPU.getSurfaceSupportKHR(m_familyIndices[QType::Graphics], *m_surface))
+        m_familyIndices[QType::Present] = m_familyIndices[QType::Graphics];
 
-    if (m_pFamilyIndex == queueFamilyProperties.size())
+    if (m_familyIndices[QType::Present] == queueFamilyProperties.size())
     {
         // the graphicsIndex doesn't support present -> look for another family index that supports both
         // graphics and present
-        for (size_t i = m_gFamilyIndex == queueFamilyProperties.size() ? 0 : m_gFamilyIndex + 1; 
+        for (size_t i = m_familyIndices[QType::Graphics] == queueFamilyProperties.size() ? 0 : m_familyIndices[QType::Graphics] + 1;
             i < queueFamilyProperties.size(); i++)
         {
             if ((queueFamilyProperties[i].queueFlags & vk::QueueFlagBits::eGraphics) &&
                 m_dGPU.getSurfaceSupportKHR(static_cast<uint32_t>(i), *m_surface))
             {
-                m_gFamilyIndex = static_cast<uint32_t>(i);
-                m_pFamilyIndex = m_gFamilyIndex;
+                m_familyIndices[QType::Graphics] = static_cast<uint32_t>(i);
+                m_familyIndices[QType::Present] = m_familyIndices[QType::Graphics];
                 break;
             }
         }
-        if (m_pFamilyIndex == queueFamilyProperties.size())
+        if (m_familyIndices[QType::Present] == queueFamilyProperties.size())
         {
             // if there isn't a single family index that supports both graphics and present -> look for another
             // family index that supports present
@@ -196,7 +197,7 @@ void Core::setupLogicalDevice()
             {
                 if (m_dGPU.getSurfaceSupportKHR(static_cast<uint32_t>(i), *m_surface))
                 {
-                    m_pFamilyIndex = static_cast<uint32_t>(i);
+                    m_familyIndices[QType::Present] = static_cast<uint32_t>(i);
                     break;
                 }
             }
@@ -204,61 +205,61 @@ void Core::setupLogicalDevice()
     }
     
     deviceQueueCI.push_back({
-        .queueFamilyIndex = m_gFamilyIndex,
+        .queueFamilyIndex = m_familyIndices[QType::Graphics],
         .queueCount = 1,
         .pQueuePriorities = queuePriorities
     });
 
-    if (m_pFamilyIndex == queueFamilyProperties.size())
+    if (m_familyIndices[QType::Present] == queueFamilyProperties.size())
     {
         throw std::runtime_error("Could not find a queue for present -> terminating");
     }
 
-    if (m_pFamilyIndex == m_gFamilyIndex) 
+    if (m_familyIndices[QType::Present] == m_familyIndices[QType::Graphics])
     {
-        queueIndices[0] = currQueueIndex;
+        queueIndices[QType::Present - 1] = currQueueIndex;
         queuePriorities[currQueueIndex++] = 0.25f;
     }
     else 
     {
         deviceQueueCI.push_back({
-            .queueFamilyIndex = m_pFamilyIndex,
+            .queueFamilyIndex = m_familyIndices[QType::Present],
             .queueCount = 1,
             .pQueuePriorities = &defPriority
         });
     }
 
-    if (m_cFamilyIndex == queueFamilyProperties.size()) 
+    if (m_familyIndices[QType::Compute] == queueFamilyProperties.size())
     {
-        m_cFamilyIndex = m_gFamilyIndex;
-        queueIndices[1] = currQueueIndex;
+        m_familyIndices[QType::Compute] = m_familyIndices[QType::Graphics];
+        queueIndices[QType::Compute - 1] = currQueueIndex;
         queuePriorities[currQueueIndex++] = 1.0f;
     }
     else 
     {
         deviceQueueCI.push_back({
-            .queueFamilyIndex = m_cFamilyIndex,
+            .queueFamilyIndex = m_familyIndices[QType::Compute],
             .queueCount = 1,
             .pQueuePriorities = &defPriority
         });
     }
 
-    if (m_tFamilyIndex == queueFamilyProperties.size()) 
+    if (m_familyIndices[QType::Transfer] == queueFamilyProperties.size())
     {
-        m_tFamilyIndex = m_gFamilyIndex;
-        queueIndices[2] = currQueueIndex;
+        m_familyIndices[QType::Transfer] = m_familyIndices[QType::Graphics];
+        queueIndices[QType::Transfer - 1] = currQueueIndex;
         queuePriorities[currQueueIndex++] = 0.5f;
     }
     else 
     {
         deviceQueueCI.push_back({
-            .queueFamilyIndex = m_tFamilyIndex,
+            .queueFamilyIndex = m_familyIndices[QType::Transfer],
             .queueCount = 1,
             .pQueuePriorities = &defPriority
         });
     }
 
-    deviceQueueCI[0].setQueueCount(currQueueIndex);
+    deviceQueueCI[QType::Graphics].setQueueCount(currQueueIndex);
 
     // query for Vulkan 1.3 features
     auto features = m_dGPU.getFeatures2();
@@ -280,10 +281,10 @@ void Core::setupLogicalDevice()
     };
 
     m_device = vk::raii::Device(m_dGPU, deviceCreateInfo);
-    m_graphicsQueue = vk::raii::Queue(m_device, m_gFamilyIndex, 0);
-    m_presentQueue = vk::raii::Queue(m_device, m_pFamilyIndex, queueIndices[0]);
-    m_computeQueue = vk::raii::Queue(m_device, m_cFamilyIndex, queueIndices[1]);
-    m_transferQueue = vk::raii::Queue(m_device, m_tFamilyIndex, queueIndices[2]);
+    m_graphicsQueue = vk::raii::Queue(m_device, m_familyIndices[QType::Graphics], 0);
+    m_presentQueue = vk::raii::Queue(m_device, m_familyIndices[QType::Present], queueIndices[QType::Present - 1]);
+    m_computeQueue = vk::raii::Queue(m_device, m_familyIndices[QType::Compute], queueIndices[QType::Compute - 1]);
+    m_transferQueue = vk::raii::Queue(m_device, m_familyIndices[QType::Transfer], queueIndices[QType::Transfer - 1]);
 }
 
 bool Core::suitableDiscreteGPU(const vk::raii::PhysicalDevice& device)
@@ -405,7 +406,7 @@ void Core::createGraphicsPipeline()
     vk::PipelineShaderStageCreateInfo fragShaderStageInfo{ 
         .stage = vk::ShaderStageFlagBits::eFragment, 
         .module = fragModule, 
-        .pName = "fragMain" 
+        .pName = "fragMain"
     };
 
     vk::PipelineShaderStageCreateInfo shaderStages[] = { vertShaderStageInfo, fragShaderStageInfo };
@@ -417,7 +418,7 @@ void Core::createGraphicsPipeline()
 
     vk::PipelineDynamicStateCreateInfo dynamicState{ 
         .dynamicStateCount = static_cast<uint32_t>(dynamicStates.size()), 
-        .pDynamicStates = dynamicStates.data() 
+        .pDynamicStates = dynamicStates.data()
     };
 
     auto bindingDescription = Vertex::getBindingDesc();
@@ -496,7 +497,7 @@ void Core::createGraphicsPipeline()
         .pVertexInputState = &vertexInputInfo, .pInputAssemblyState = &inputAssembly,
         .pViewportState = &viewportState, .pRasterizationState = &rasterizer,
         .pMultisampleState = &multisampling, .pColorBlendState = &colorBlending,
-        .pDynamicState = &dynamicState, .layout = pipelineLayout, .renderPass = nullptr ,
+        .pDynamicState = &dynamicState, .layout = pipelineLayout, .renderPass = nullptr,
         .basePipelineHandle = VK_NULL_HANDLE, .basePipelineIndex = -1
     };
 
@@ -510,10 +511,10 @@ void Core::createCommandPool()
 {
     vk::CommandPoolCreateInfo poolInfo{
         .flags = vk::CommandPoolCreateFlagBits::eResetCommandBuffer,
-        .queueFamilyIndex = m_gFamilyIndex
+        .queueFamilyIndex = m_familyIndices[QType::Graphics],
     };
 
-    m_commandPool = vk::raii::CommandPool(m_device, poolInfo);
+    m_graphicsCP = vk::raii::CommandPool(m_device, poolInfo);
 }
 
 void Core::createCommandBuffers()
@@ -521,9 +522,9 @@ void Core::createCommandBuffers()
     m_commandBuffers.clear();
 
     vk::CommandBufferAllocateInfo allocInfo{ 
-        .commandPool = m_commandPool, 
+        .commandPool = m_graphicsCP,
         .level = vk::CommandBufferLevel::ePrimary, 
-        .commandBufferCount = MAX_FRAMES_IN_FLIGHT 
+        .commandBufferCount = MAX_FRAMES_IN_FLIGHT
     };
 
     m_commandBuffers = vk::raii::CommandBuffers(m_device, allocInfo);
@@ -609,7 +610,7 @@ vk::raii::ShaderModule Core::createShaderModule(const std::vector<char>& code) c
 {
     vk::ShaderModuleCreateInfo createInfo{ 
         .codeSize = code.size() * sizeof(char), 
-        .pCode = reinterpret_cast<const uint32_t*>(code.data()) 
+        .pCode = reinterpret_cast<const uint32_t*>(code.data())
     };
 
     return vk::raii::ShaderModule{ m_device, createInfo };
@@ -819,7 +820,7 @@ void Core::init()
             .enabledLayerCount = static_cast<uint32_t>(requiredLayers.size()),
             .ppEnabledLayerNames = requiredLayers.data(),
             .enabledExtensionCount = static_cast<uint32_t>(requiredExtensions.size()),
-            .ppEnabledExtensionNames = requiredExtensions.data(),
+            .ppEnabledExtensionNames = requiredExtensions.data()
         };
 
         m_instance = vk::raii::Instance{ m_context, createInfo };

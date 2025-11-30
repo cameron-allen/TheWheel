@@ -15,13 +15,29 @@ uint32_t VertexBuffer::findMemoryType(uint32_t typeFilter, vk::MemoryPropertyFla
 
 void VertexBuffer::initBuffer(vk::raii::Device& device)
 {
-	vk::BufferCreateInfo bufferInfo {
+	Core& c = Core::GetInstance();
+	vk::BufferCreateInfo bufferInfo{
 		.size = sizeof(m_vertices[0]) * m_vertices.size(),
-		.usage = vk::BufferUsageFlagBits::eVertexBuffer,
-		.sharingMode = vk::SharingMode::eExclusive
+		.usage = vk::BufferUsageFlagBits::eVertexBuffer
 	};
+	
+	if (c.m_familyIndices[QType::Graphics] == c.m_familyIndices[QType::Transfer]) 
+	{
+		bufferInfo.setSharingMode(vk::SharingMode::eExclusive);
+		m_buffer = vk::raii::Buffer(device, bufferInfo);
+	}
+	else 
+	{
+		uint32_t qFamilyIndices[2] = {
+			c.m_familyIndices[QType::Graphics],
+			c.m_familyIndices[QType::Transfer]
+		};
+		bufferInfo.setSharingMode(vk::SharingMode::eConcurrent);
+		bufferInfo.setQueueFamilyIndexCount(2);
+		bufferInfo.setPQueueFamilyIndices(qFamilyIndices);
+		m_buffer = vk::raii::Buffer(device, bufferInfo);
+	}
 
-	m_buffer = vk::raii::Buffer(device, bufferInfo);
 	vk::MemoryRequirements memRequirements = m_buffer.getMemoryRequirements();
 
 	vk::MemoryAllocateInfo memoryAllocateInfo{

@@ -2,12 +2,22 @@
 #include <vulkan/vulkan.hpp>
 #include <vulkan/vulkan_raii.hpp>
 
+// Queue Types
+enum QType 
+{
+	Graphics,
+	Compute,
+	Transfer,
+	Present
+};
+
 class SDLWindow;
 
 //@brief Contains core engine logic
 class Core 
 {
 	friend class SDLWindow;
+	friend class VertexBuffer;
 
 private:
 	vk::PhysicalDeviceMemoryProperties m_pDMemoryProperties;
@@ -27,14 +37,15 @@ private:
 	vk::raii::Pipeline m_graphicsPipeline = nullptr;
 	vk::raii::SurfaceKHR m_surface = nullptr; 
 	vk::raii::SwapchainKHR m_swapChain = nullptr;
-	vk::raii::CommandPool m_commandPool = nullptr;
+	vk::raii::CommandPool m_graphicsCP = nullptr;
 
 	vk::Format m_swapChainSurfaceFormat = vk::Format::eUndefined;
 	vk::Extent2D m_swapChainExtent;
 	SDLWindow* mp_window = nullptr;
-	//		 graphics			 present			 transfer
-	uint32_t m_gFamilyIndex = 0, m_pFamilyIndex = 0, 
-			 m_tFamilyIndex = 0, m_cFamilyIndex = 0;
+	//		 graphics, compute, transfer, present
+	uint32_t m_familyIndices[4] = { 0, 0, 0, 0 };
+	/*uint32_t m_gFamilyIndex = 0, m_pFamilyIndex = 0, 
+			 m_tFamilyIndex = 0, m_cFamilyIndex = 0;*/
 	uint32_t m_currentFrame = 0;
 	uint32_t m_semaphoreIndex = 0;
 
@@ -64,14 +75,12 @@ private:
 	bool suitableDiscreteGPU(const vk::raii::PhysicalDevice& device);
 	//@brief Creates Vulkan rendering surface
 	void createSurface();
-	
 	//@brief Creates surface swap chain
 	void createSwapChain();
 	//@brief Recreates swap chain
 	void recreateSwapChain();
 	//@brief Cleans swap chain
 	void cleanSwapChain();
-
 	//@brief Creates image views
 	void createImageViews();
 	//@brief Creates graphics pipeline
@@ -98,6 +107,13 @@ private:
 	vk::PresentModeKHR chooseSwapPresentMode(const std::vector<vk::PresentModeKHR>& availablePresentModes);
 	//@brief Chooses swap chain surface extent
 	vk::Extent2D chooseSwapExtent(const vk::SurfaceCapabilitiesKHR& capabilities);
+
+	//@brief Gets family index of Vulkan queue
+	//@param  queueType:	enum of queue types
+	//@return unsigned int
+	unsigned int getQueueFamilyIndex(const QType& queueType);
+
+
 
 public:
 	//@brief Gets static instance
