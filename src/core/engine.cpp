@@ -112,7 +112,12 @@ void Core::selectPhysicalDevices()
 
 void Core::setupLogicalDevice()
 {
+    std::vector<vk::DeviceQueueCreateInfo> deviceQueueCI;
     std::vector<vk::QueueFamilyProperties> queueFamilyProperties = m_dGPU.getQueueFamilyProperties();
+    float queuePriorities[4] = { 1.0f, 0.0f, 0.0f, 0.0f };
+    const float defPriority = 1.0f;
+    unsigned int queueIndices[3] = { 0, 0, 0 };
+    unsigned int currQueueIndex = 1;
     
     // get the first index into queueFamilyProperties which supports graphics
     auto graphicsQueueFamilyProperty = std::ranges::find_if(queueFamilyProperties, [](auto const& qfp)
@@ -123,8 +128,8 @@ void Core::setupLogicalDevice()
     std::vector<vk::SurfaceFormatKHR> availableFormats = m_dGPU.getSurfaceFormatsKHR(m_surface);
     std::vector<vk::PresentModeKHR> availablePresentModes = m_dGPU.getSurfacePresentModesKHR(m_surface);
     
-    float queuePriority = 1.0f;
     m_gFamilyIndex = static_cast<uint32_t>(std::distance(queueFamilyProperties.begin(), graphicsQueueFamilyProperty));
+    m_pFamilyIndex = m_tFamilyIndex = queueFamilyProperties.size();
 
     // Create a chain of feature structures
     vk::StructureChain<vk::PhysicalDeviceFeatures2, vk::PhysicalDeviceVulkan13Features, vk::PhysicalDeviceExtendedDynamicStateFeaturesEXT> featureChain = {
@@ -175,10 +180,79 @@ void Core::setupLogicalDevice()
             }
         }
     }
+    
+    deviceQueueCI.push_back({
+        .queueFamilyIndex = m_gFamilyIndex,
+        .queueCount = 1,
+        .pQueuePriorities = queuePriorities
+    });
+
     if ((m_gFamilyIndex == queueFamilyProperties.size()) || (m_pFamilyIndex == queueFamilyProperties.size()))
     {
         throw std::runtime_error("Could not find a queue for graphics or present -> terminating");
     }
+
+    // Find transfer and compute queue index
+    for (size_t i = 0; i < queueFamilyProperties.size(); i++) 
+    {
+        if (i != m_gFamilyIndex &&
+            !(queueFamilyProperties[i].queueFlags & vk::QueueFlagBits::eGraphics))
+        {
+            if (queueFamilyProperties[i].queueFlags & vk::QueueFlagBits::eCompute)
+            {
+                m_cFamilyIndex = i;
+            }
+            else if (queueFamilyProperties[i].queueFlags & vk::QueueFlagBits::eTransfer) 
+            {
+                m_tFamilyIndex = i;
+            }
+        }
+    }
+    if (m_pFamilyIndex == m_gFamilyIndex) 
+    {
+        queueIndices[0] = currQueueIndex;
+        queuePriorities[currQueueIndex++] = 0.25f;
+    }
+    else 
+    {
+        deviceQueueCI.push_back({
+            .queueFamilyIndex = m_pFamilyIndex,
+            .queueCount = 1,
+            .pQueuePriorities = &defPriority
+        });
+    }
+
+    if (m_cFamilyIndex == queueFamilyProperties.size()) 
+    {
+        m_cFamilyIndex = m_gFamilyIndex;
+        queueIndices[1] = currQueueIndex;
+        queuePriorities[currQueueIndex++] = 1.0f;
+    }
+    else 
+    {
+        deviceQueueCI.push_back({
+            .queueFamilyIndex = m_cFamilyIndex,
+            .queueCount = 1,
+            .pQueuePriorities = &defPriority
+        });
+    }
+
+    if (m_tFamilyIndex == queueFamilyProperties.size()) 
+    {
+        m_tFamilyIndex = m_gFamilyIndex;
+        queueIndices[2] = currQueueIndex;
+        queuePriorities[currQueueIndex++] = 0.5f;
+    }
+    else 
+    {
+        deviceQueueCI.push_back({
+            .queueFamilyIndex = m_tFamilyIndex,
+            .queueCount = 1,
+            .pQueuePriorities = &defPriority
+        });
+    }
+
+    deviceQueueCI[0].setQueueCount(currQueueIndex);
 
     // query for Vulkan 1.3 features
     auto features = m_dGPU.getFeatures2();
@@ -189,27 +263,21 @@ void Core::setupLogicalDevice()
     vulkan13Features.synchronization2 = vk::True;
     vulkan13Features.pNext = &extendedDynamicStateFeatures;
     features.pNext = &vulkan13Features;
-    
-    // create a Device
-    vk::DeviceQueueCreateInfo deviceQueueCreateInfo
-    {
-        .queueFamilyIndex = m_gFamilyIndex,
-        .queueCount = 1,
-        .pQueuePriorities = &queuePriority,
-    };
 
     vk::DeviceCreateInfo deviceCreateInfo 
     {
         .pNext = &features,
-        .queueCreateInfoCount = 1,
-        .pQueueCreateInfos = &deviceQueueCreateInfo,
+        .queueCreateInfoCount = static_cast<unsigned int>(deviceQueueCI.size()),
+        .pQueueCreateInfos = &deviceQueueCI[0],
         .enabledExtensionCount = static_cast<unsigned int>(deviceExtensions.size()),
         .ppEnabledExtensionNames = deviceExtensions.data()
     };
 
     m_device = vk::raii::Device(m_dGPU, deviceCreateInfo);
     m_graphicsQueue = vk::raii::Queue(m_device, m_gFamilyIndex, 0);
-    m_presentQueue = vk::raii::Queue(m_device, m_pFamilyIndex, 0);
+    m_presentQueue = vk::raii::Queue(m_device, m_pFamilyIndex, queueIndices[0]);
+    m_computeQueue = vk::raii::Queue(m_device, m_cFamilyIndex, queueIndices[1]);
+    m_transferQueue = vk::raii::Queue(m_device, m_tFamilyIndex, queueIndices[2]);
 }
 
 bool Core::suitableDiscreteGPU(const vk::raii::PhysicalDevice& device)
@@ -645,7 +713,7 @@ void Core::draw()
         .signalSemaphoreCount = 1, 
         .pSignalSemaphores = &*m_renderFinishedSemaphores[imageIndex]
     };
-    m_presentQueue.submit(submitInfo, *m_inFlightFences[m_currentFrame]);
+    m_graphicsQueue.submit(submitInfo, *m_inFlightFences[m_currentFrame]);
 
     try
     {

@@ -20,7 +20,8 @@ private:
 	vk::raii::Context m_context{};
 	vk::raii::Instance m_instance = nullptr;
 	vk::raii::DebugUtilsMessengerEXT m_debugMessenger = nullptr;
-	vk::raii::Queue m_graphicsQueue = nullptr, m_presentQueue = nullptr;
+	vk::raii::Queue m_graphicsQueue = nullptr, m_presentQueue = nullptr, 
+					m_computeQueue = nullptr, m_transferQueue = nullptr;
 	vk::raii::Device m_device = nullptr;
 	vk::raii::PhysicalDevice m_dGPU = nullptr;
 	vk::raii::Pipeline m_graphicsPipeline = nullptr;
@@ -31,8 +32,9 @@ private:
 	vk::Format m_swapChainSurfaceFormat = vk::Format::eUndefined;
 	vk::Extent2D m_swapChainExtent;
 	SDLWindow* mp_window = nullptr;
-	//			 graphics			 present
-	uint32_t m_gFamilyIndex = 0, m_pFamilyIndex = 0;
+	//		 graphics			 present			 transfer
+	uint32_t m_gFamilyIndex = 0, m_pFamilyIndex = 0, 
+			 m_tFamilyIndex = 0, m_cFamilyIndex = 0;
 	uint32_t m_currentFrame = 0;
 	uint32_t m_semaphoreIndex = 0;
 
