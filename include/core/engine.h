@@ -17,7 +17,6 @@ class SDLWindow;
 class Core 
 {
 	friend class SDLWindow;
-	friend class VertexBuffer;
 
 private:
 	vk::PhysicalDeviceMemoryProperties m_pDMemoryProperties;
@@ -44,8 +43,6 @@ private:
 	SDLWindow* mp_window = nullptr;
 	//		 graphics, compute, transfer, present
 	uint32_t m_familyIndices[4] = { 0, 0, 0, 0 };
-	/*uint32_t m_gFamilyIndex = 0, m_pFamilyIndex = 0, 
-			 m_tFamilyIndex = 0, m_cFamilyIndex = 0;*/
 	uint32_t m_currentFrame = 0;
 	uint32_t m_semaphoreIndex = 0;
 
@@ -108,13 +105,6 @@ private:
 	//@brief Chooses swap chain surface extent
 	vk::Extent2D chooseSwapExtent(const vk::SurfaceCapabilitiesKHR& capabilities);
 
-	//@brief Gets family index of Vulkan queue
-	//@param  queueType:	enum of queue types
-	//@return unsigned int
-	unsigned int getQueueFamilyIndex(const QType& queueType);
-
-
-
 public:
 	//@brief Gets static instance
 	static Core& GetInstance();
@@ -140,4 +130,10 @@ public:
 
 	void setFramebufferResized(bool state) 
 	{ m_framebufferResized = state; }
+
+	//@brief Gets family index of Vulkan queue
+	//@param  queueType:	enum of queue types
+	//@return unsigned int
+	unsigned int getQueueFamilyIndex(const QType& queueType)
+	{ return m_familyIndices[queueType]; }
 };

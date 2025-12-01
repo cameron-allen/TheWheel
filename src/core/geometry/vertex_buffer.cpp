@@ -21,7 +21,7 @@ void VertexBuffer::initBuffer(vk::raii::Device& device)
 		.usage = vk::BufferUsageFlagBits::eVertexBuffer
 	};
 	
-	if (c.m_familyIndices[QType::Graphics] == c.m_familyIndices[QType::Transfer]) 
+	if (c.getQueueFamilyIndex(QType::Graphics) == c.getQueueFamilyIndex(QType::Transfer))
 	{
 		bufferInfo.setSharingMode(vk::SharingMode::eExclusive);
 		m_buffer = vk::raii::Buffer(device, bufferInfo);
@@ -29,8 +29,8 @@ void VertexBuffer::initBuffer(vk::raii::Device& device)
 	else 
 	{
 		uint32_t qFamilyIndices[2] = {
-			c.m_familyIndices[QType::Graphics],
-			c.m_familyIndices[QType::Transfer]
+			c.getQueueFamilyIndex(QType::Graphics),
+			c.getQueueFamilyIndex(QType::Transfer)
 		};
 		bufferInfo.setSharingMode(vk::SharingMode::eConcurrent);
 		bufferInfo.setQueueFamilyIndexCount(2);
