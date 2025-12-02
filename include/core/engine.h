@@ -36,7 +36,7 @@ private:
 	vk::raii::Pipeline m_graphicsPipeline = nullptr;
 	vk::raii::SurfaceKHR m_surface = nullptr; 
 	vk::raii::SwapchainKHR m_swapChain = nullptr;
-	vk::raii::CommandPool m_graphicsCP = nullptr;
+	vk::raii::CommandPool m_graphicsCP = nullptr, m_transferCP = nullptr;
 
 	vk::Format m_swapChainSurfaceFormat = vk::Format::eUndefined;
 	vk::Extent2D m_swapChainExtent;
@@ -83,7 +83,7 @@ private:
 	//@brief Creates graphics pipeline
 	void createGraphicsPipeline();
 	//@brief Initializes vk::raii::CommandPool 
-	void createCommandPool();
+	void createCommandPools();
 	//@brief Initializes vk::raii::CommandBuffer 
 	void createCommandBuffers();
 	//@brief Initializes rendering semaphores and fences

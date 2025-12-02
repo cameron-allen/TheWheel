@@ -507,14 +507,17 @@ void Core::createGraphicsPipeline()
     m_graphicsPipeline = vk::raii::Pipeline(m_device, nullptr, pipelineInfo);
 }
 
-void Core::createCommandPool()
+void Core::createCommandPools()
 {
-    vk::CommandPoolCreateInfo poolInfo{
+    m_graphicsCP = vk::raii::CommandPool(m_device, {
         .flags = vk::CommandPoolCreateFlagBits::eResetCommandBuffer,
-        .queueFamilyIndex = m_familyIndices[QType::Graphics],
-    };
+        .queueFamilyIndex = m_familyIndices[QType::Graphics]
+    });
 
-    m_graphicsCP = vk::raii::CommandPool(m_device, poolInfo);
+    m_transferCP = vk::raii::CommandPool(m_device, {
+        .flags = vk::CommandPoolCreateFlagBits::eTransient,
+        .queueFamilyIndex = m_familyIndices[QType::Transfer]
+    });
 }
 
 void Core::createCommandBuffers()
@@ -834,7 +837,7 @@ void Core::init()
         createSwapChain();
         createImageViews();
         createGraphicsPipeline();
-        createCommandPool();
+        createCommandPools();
         createMeshes();
         createCommandBuffers();
         createSyncObjects();
