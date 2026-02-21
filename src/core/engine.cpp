@@ -7,12 +7,18 @@
 
 #include "core/geometry/mesh.h"
 
-Mesh triangle
-{{
-    {{0.0f, -0.5f}, {1.0f, 1.0f, 1.0f}},
-    {{0.5f, 0.5f}, {0.0f, 1.0f, 0.0f}},
-    {{-0.5f, 0.5f}, {0.0f, 0.0f, 1.0f}}
-}};
+const std::vector<Vertex> vertex_data =
+{
+    {{-0.5f, -0.5f}, {1.0f, 0.0f, 0.0f}},
+    {{0.5f, -0.5f}, {0.0f, 1.0f, 0.0f}},
+    {{0.5f, 0.5f}, {0.0f, 0.0f, 1.0f}},
+    {{-0.5f, 0.5f}, {1.0f, 1.0f, 1.0f}}
+};
+
+const std::vector<uint32_t> index_data =
+{ 0, 1, 2, 2, 3, 0 };
+
+Mesh triangle{ &vertex_data, &index_data };
 
 // More info for Vulkan debug configuration at the bottom of this page:
 // https://docs.vulkan.org/tutorial/latest/03_Drawing_a_triangle/00_Setup/02_Validation_layers.html
@@ -70,7 +76,7 @@ void Core::transitionImageLayout(
         .imageMemoryBarrierCount = 1,
         .pImageMemoryBarriers = &barrier
     };
-    m_commandBuffers[m_currentFrame].pipelineBarrier2(dependencyInfo);
+    m_commandBuffers[QType::Graphics][m_currentFrame].pipelineBarrier2(dependencyInfo);
 }
 
 void Core::setupDebugMessenger()
@@ -281,10 +287,10 @@ void Core::setupLogicalDevice()
     };
 
     m_device = vk::raii::Device(m_dGPU, deviceCreateInfo);
-    m_graphicsQueue = vk::raii::Queue(m_device, m_familyIndices[QType::Graphics], 0);
-    m_presentQueue = vk::raii::Queue(m_device, m_familyIndices[QType::Present], queueIndices[QType::Present - 1]);
-    m_computeQueue = vk::raii::Queue(m_device, m_familyIndices[QType::Compute], queueIndices[QType::Compute - 1]);
-    m_transferQueue = vk::raii::Queue(m_device, m_familyIndices[QType::Transfer], queueIndices[QType::Transfer - 1]);
+    m_queues[QType::Graphics] = vk::raii::Queue(m_device, m_familyIndices[QType::Graphics], 0);
+    m_queues[QType::Compute] = vk::raii::Queue(m_device, m_familyIndices[QType::Compute], queueIndices[QType::Compute - 1]);
+    m_queues[QType::Transfer] = vk::raii::Queue(m_device, m_familyIndices[QType::Transfer], queueIndices[QType::Transfer - 1]);
+    m_queues[QType::Present] = vk::raii::Queue(m_device, m_familyIndices[QType::Present], queueIndices[QType::Present - 1]);
 }
 
 bool Core::suitableDiscreteGPU(const vk::raii::PhysicalDevice& device)
@@ -509,12 +515,17 @@ void Core::createGraphicsPipeline()
 
 void Core::createCommandPools()
 {
-    m_graphicsCP = vk::raii::CommandPool(m_device, {
+    m_commandPools[QType::Graphics] = vk::raii::CommandPool(m_device, {
         .flags = vk::CommandPoolCreateFlagBits::eResetCommandBuffer,
         .queueFamilyIndex = m_familyIndices[QType::Graphics]
     });
 
-    m_transferCP = vk::raii::CommandPool(m_device, {
+    m_commandPools[QType::Compute] = vk::raii::CommandPool(m_device, {
+        .flags = vk::CommandPoolCreateFlagBits::eResetCommandBuffer,
+        .queueFamilyIndex = m_familyIndices[QType::Compute]
+    });
+
+    m_commandPools[QType::Transfer] = vk::raii::CommandPool(m_device, {
         .flags = vk::CommandPoolCreateFlagBits::eTransient,
         .queueFamilyIndex = m_familyIndices[QType::Transfer]
     });
@@ -522,15 +533,19 @@ void Core::createCommandPools()
 
 void Core::createCommandBuffers()
 {
-    m_commandBuffers.clear();
+    m_commandBuffers[QType::Graphics].clear();
+    m_commandBuffers[QType::Graphics] = vk::raii::CommandBuffers(m_device, {
+        .commandPool = m_commandPools[QType::Graphics],
+        .level = vk::CommandBufferLevel::ePrimary,
+        .commandBufferCount = MAX_FRAMES_IN_FLIGHT 
+    });
 
-    vk::CommandBufferAllocateInfo allocInfo{ 
-        .commandPool = m_graphicsCP,
-        .level = vk::CommandBufferLevel::ePrimary, 
-        .commandBufferCount = MAX_FRAMES_IN_FLIGHT
-    };
-
-    m_commandBuffers = vk::raii::CommandBuffers(m_device, allocInfo);
+    m_commandBuffers[QType::Transfer].clear();
+    m_commandBuffers[QType::Transfer] = vk::raii::CommandBuffers(m_device, {
+        .commandPool = m_commandPools[QType::Transfer],
+        .level = vk::CommandBufferLevel::ePrimary,
+        .commandBufferCount = 1        // One for now
+    });
 }
 
 void Core::createSyncObjects()
@@ -559,7 +574,8 @@ void Core::createMeshes()
 
 void Core::recordCommandBuffer(uint32_t imageIndex)
 {
-    m_commandBuffers[m_currentFrame].begin({});
+    auto& graphicsBuffers = m_commandBuffers[QType::Graphics];
+    graphicsBuffers[m_currentFrame].begin({});
     // Before starting rendering, transition the swapchain image to COLOR_ATTACHMENT_OPTIMAL
     transitionImageLayout(
         imageIndex,
@@ -587,13 +603,17 @@ void Core::recordCommandBuffer(uint32_t imageIndex)
         .pColorAttachments = &attachmentInfo 
     };
 
-    m_commandBuffers[m_currentFrame].beginRendering(renderingInfo);
-    m_commandBuffers[m_currentFrame].bindPipeline(vk::PipelineBindPoint::eGraphics, *m_graphicsPipeline);
-    m_commandBuffers[m_currentFrame].setViewport(0, vk::Viewport(0.0f, 0.0f, static_cast<float>(m_swapChainExtent.width), static_cast<float>(m_swapChainExtent.height), 0.0f, 1.0f));
-    m_commandBuffers[m_currentFrame].setScissor(0, vk::Rect2D(vk::Offset2D(0, 0), m_swapChainExtent));
-    m_commandBuffers[m_currentFrame].bindVertexBuffers(0, triangle.getVertexBuffer(), {0});
-    m_commandBuffers[m_currentFrame].draw(3, 1, 0, 0);
-    m_commandBuffers[m_currentFrame].endRendering();
+    graphicsBuffers[m_currentFrame].beginRendering(renderingInfo);
+    graphicsBuffers[m_currentFrame].bindPipeline(vk::PipelineBindPoint::eGraphics, *m_graphicsPipeline);
+    graphicsBuffers[m_currentFrame].setViewport(0, vk::Viewport(0.0f, 0.0f, static_cast<float>(m_swapChainExtent.width), static_cast<float>(m_swapChainExtent.height), 0.0f, 1.0f));
+    graphicsBuffers[m_currentFrame].setScissor(0, vk::Rect2D(vk::Offset2D(0, 0), m_swapChainExtent));
+    
+    graphicsBuffers[m_currentFrame].bindVertexBuffers(0, triangle.getVertexBuffer().getBuffer(), {0});
+    graphicsBuffers[m_currentFrame].bindIndexBuffer(triangle.getIndexBuffer().getBuffer(), 0, vk::IndexType::eUint32);
+    graphicsBuffers[m_currentFrame].drawIndexed(triangle.getIndexBuffer().getIndexSize(), 1, 0, 0, 0);
+    //graphicsBuffers[m_currentFrame].draw(3, 1, 0, 0);
+    
+    graphicsBuffers[m_currentFrame].endRendering();
     
     // After rendering, transition the swapchain image to PRESENT_SRC
     transitionImageLayout(
@@ -606,7 +626,7 @@ void Core::recordCommandBuffer(uint32_t imageIndex)
         vk::PipelineStageFlagBits2::eBottomOfPipe                  // dstStage
     );
 
-    m_commandBuffers[m_currentFrame].end();
+    graphicsBuffers[m_currentFrame].end();
 }
 
 vk::raii::ShaderModule Core::createShaderModule(const std::vector<char>& code) const
@@ -662,7 +682,7 @@ Core& Core::GetInstance()
     return *mp_instance;
 }
 
-std::vector<const char*> Core::GetRequiredExtensions()
+std::vector<const char*> Core::getRequiredExtensions()
 {
     Uint32 sdlExtensionCount = 0;
     const char* const* sdlExtensions = SDL_Vulkan_GetInstanceExtensions(&sdlExtensionCount);
@@ -710,7 +730,7 @@ void Core::draw()
     }
 
     m_device.resetFences(*m_inFlightFences[m_currentFrame]);
-    m_commandBuffers[m_currentFrame].reset();
+    m_commandBuffers[QType::Graphics][m_currentFrame].reset();
     recordCommandBuffer(imageIndex);
 
     vk::PipelineStageFlags waitDestinationStageMask(vk::PipelineStageFlagBits::eColorAttachmentOutput);
@@ -719,11 +739,11 @@ void Core::draw()
         .pWaitSemaphores = &*m_presentCompleteSemaphores[m_semaphoreIndex],
         .pWaitDstStageMask = &waitDestinationStageMask, 
         .commandBufferCount = 1, 
-        .pCommandBuffers = &*m_commandBuffers[m_currentFrame],
+        .pCommandBuffers = &*m_commandBuffers[QType::Graphics][m_currentFrame],
         .signalSemaphoreCount = 1, 
         .pSignalSemaphores = &*m_renderFinishedSemaphores[imageIndex]
     };
-    m_graphicsQueue.submit(submitInfo, *m_inFlightFences[m_currentFrame]);
+    m_queues[QType::Graphics].submit(submitInfo, *m_inFlightFences[m_currentFrame]);
 
     try
     {
@@ -735,7 +755,7 @@ void Core::draw()
             .pImageIndices = &imageIndex 
         };
 
-        result = m_presentQueue.presentKHR(presentInfoKHR);
+        result = m_queues[QType::Present].presentKHR(presentInfoKHR);
         if (result == vk::Result::eErrorOutOfDateKHR || result == vk::Result::eSuboptimalKHR || m_framebufferResized)
         {
             m_framebufferResized = false;
@@ -777,7 +797,7 @@ void Core::init()
         .apiVersion = vk::ApiVersion14
     };
 
-    std::vector<char const*> requiredLayers, requiredExtensions = Core::GetRequiredExtensions();
+    std::vector<char const*> requiredLayers, requiredExtensions = getRequiredExtensions();
 
 #ifndef NDEBUG
         requiredLayers.assign(VALIDATION_LAYERS.begin(), VALIDATION_LAYERS.end());

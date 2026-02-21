@@ -20,23 +20,22 @@ class Core
 
 private:
 	vk::PhysicalDeviceMemoryProperties m_pDMemoryProperties;
+	vk::raii::CommandPool m_commandPools[3] = { nullptr, nullptr, nullptr };
+	std::vector<vk::raii::CommandBuffer> m_commandBuffers[3];
 	std::vector<vk::Image> m_swapChainImages;
 	std::vector<vk::raii::ImageView> m_swapChainImageViews;
-	std::vector<vk::raii::CommandBuffer> m_commandBuffers;
 	std::vector<vk::raii::Semaphore> m_presentCompleteSemaphores;
 	std::vector<vk::raii::Semaphore> m_renderFinishedSemaphores;
 	std::vector<vk::raii::Fence> m_inFlightFences;
+	vk::raii::Queue m_queues[4] = { nullptr, nullptr, nullptr, nullptr };
 	vk::raii::Context m_context{};
 	vk::raii::Instance m_instance = nullptr;
 	vk::raii::DebugUtilsMessengerEXT m_debugMessenger = nullptr;
-	vk::raii::Queue m_graphicsQueue = nullptr, m_presentQueue = nullptr, 
-					m_computeQueue = nullptr, m_transferQueue = nullptr;
 	vk::raii::Device m_device = nullptr;
 	vk::raii::PhysicalDevice m_dGPU = nullptr;
 	vk::raii::Pipeline m_graphicsPipeline = nullptr;
 	vk::raii::SurfaceKHR m_surface = nullptr; 
 	vk::raii::SwapchainKHR m_swapChain = nullptr;
-	vk::raii::CommandPool m_graphicsCP = nullptr, m_transferCP = nullptr;
 
 	vk::Format m_swapChainSurfaceFormat = vk::Format::eUndefined;
 	vk::Extent2D m_swapChainExtent;
@@ -109,7 +108,7 @@ public:
 	//@brief Gets static instance
 	static Core& GetInstance();
 	//@brief Retrieves required Vulkan extensions
-	std::vector<const char*> GetRequiredExtensions();
+	std::vector<const char*> getRequiredExtensions();
 
 	//@brief Runs engine
 	void run();
@@ -132,8 +131,20 @@ public:
 	{ m_framebufferResized = state; }
 
 	//@brief Gets family index of Vulkan queue
-	//@param  queueType:	enum of queue types
+	//@param  queueType:	enum value representing queue type
 	//@return unsigned int
-	unsigned int getQueueFamilyIndex(const QType& queueType)
+	unsigned int getQueueFamilyIndex(QType queueType)
 	{ return m_familyIndices[queueType]; }
+
+	//@brief Gets command pool for a given queueType
+	//@param  queueType:	enum value representing queue type
+	//@return vk::raii::CommandPool&
+	vk::raii::CommandPool& getCommandPool(QType queueType)
+	{ return m_commandPools[queueType]; }
+
+	//@brief Gets queue for a given queueType
+	//@param  queueType:	enum value representing queue type
+	//@return vk::raii::Queue&
+	vk::raii::Queue& getQueue(QType queueType)
+	{ return m_queues[queueType]; }
 };

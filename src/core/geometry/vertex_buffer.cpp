@@ -1,55 +1,53 @@
 #include "core/geometry/buffers.h"
 #include "core/engine.h"
 
-uint32_t VertexBuffer::findMemoryType(uint32_t typeFilter, vk::MemoryPropertyFlags properties) 
-{
-	vk::PhysicalDeviceMemoryProperties memProperties = Core::GetInstance().getGPUMemoryProperties();
-	for (uint32_t i = 0; i < memProperties.memoryTypeCount; i++) {
-		if ((typeFilter & (1 << i)) && (memProperties.memoryTypes[i].propertyFlags & properties) == properties) {
-			return i;
-		}
-	}
-
-	throw std::runtime_error("failed to find suitable memory type!");
-}
-
 void VertexBuffer::initBuffer(vk::raii::Device& device)
 {
-	Core& c = Core::GetInstance();
-	vk::BufferCreateInfo bufferInfo{
-		.size = sizeof(m_vertices[0]) * m_vertices.size(),
-		.usage = vk::BufferUsageFlagBits::eVertexBuffer
-	};
-	
-	if (c.getQueueFamilyIndex(QType::Graphics) == c.getQueueFamilyIndex(QType::Transfer))
-	{
-		bufferInfo.setSharingMode(vk::SharingMode::eExclusive);
-		m_buffer = vk::raii::Buffer(device, bufferInfo);
-	}
-	else 
-	{
-		uint32_t qFamilyIndices[2] = {
-			c.getQueueFamilyIndex(QType::Graphics),
-			c.getQueueFamilyIndex(QType::Transfer)
-		};
-		bufferInfo.setSharingMode(vk::SharingMode::eConcurrent);
-		bufferInfo.setQueueFamilyIndexCount(2);
-		bufferInfo.setPQueueFamilyIndices(qFamilyIndices);
-		m_buffer = vk::raii::Buffer(device, bufferInfo);
-	}
+    vk::DeviceSize bufferSize = sizeof(mp_vertices[0]) * mp_vertices->size();
 
-	vk::MemoryRequirements memRequirements = m_buffer.getMemoryRequirements();
+    vk::BufferCreateInfo stagingInfo{ .size = bufferSize, .usage = vk::BufferUsageFlagBits::eTransferSrc, .sharingMode = vk::SharingMode::eExclusive };
+    vk::raii::Buffer stagingBuffer(device, stagingInfo);
+    vk::MemoryRequirements memRequirementsStaging = stagingBuffer.getMemoryRequirements();
+    vk::MemoryAllocateInfo memoryAllocateInfoStaging{ .allocationSize = memRequirementsStaging.size, 
+        .memoryTypeIndex = Buffer::FindMemoryType(memRequirementsStaging.memoryTypeBits, vk::MemoryPropertyFlagBits::eHostVisible | vk::MemoryPropertyFlagBits::eHostCoherent) };
+    vk::raii::DeviceMemory stagingBufferMemory(device, memoryAllocateInfoStaging);
 
-	vk::MemoryAllocateInfo memoryAllocateInfo{
-		.allocationSize = memRequirements.size,
-		.memoryTypeIndex = findMemoryType(memRequirements.memoryTypeBits,
-			vk::MemoryPropertyFlagBits::eHostVisible | vk::MemoryPropertyFlagBits::eHostCoherent)
-	};
+    stagingBuffer.bindMemory(stagingBufferMemory, 0);
+    void* dataStaging = stagingBufferMemory.mapMemory(0, stagingInfo.size);
+    memcpy(dataStaging, mp_vertices->data(), stagingInfo.size);
+    stagingBufferMemory.unmapMemory();
 
-	m_bufferMemory = vk::raii::DeviceMemory(device, memoryAllocateInfo);
-	m_buffer.bindMemory(*m_bufferMemory, 0);
+    vk::BufferCreateInfo bufferInfo{ .size = bufferSize, .usage = vk::BufferUsageFlagBits::eVertexBuffer | vk::BufferUsageFlagBits::eTransferDst, .sharingMode = vk::SharingMode::eExclusive };
+    m_buffer = vk::raii::Buffer(device, bufferInfo);
 
-	void* data = m_bufferMemory.mapMemory(0, bufferInfo.size);
-	memcpy(data, m_vertices.data(), bufferInfo.size);
-	m_bufferMemory.unmapMemory();
+    vk::MemoryRequirements memRequirements = m_buffer.getMemoryRequirements();
+    vk::MemoryAllocateInfo memoryAllocateInfo{ .allocationSize = memRequirements.size, .memoryTypeIndex = Buffer::FindMemoryType(memRequirements.memoryTypeBits, vk::MemoryPropertyFlagBits::eDeviceLocal) };
+    m_bufferMemory = vk::raii::DeviceMemory(device, memoryAllocateInfo);
+
+    m_buffer.bindMemory(*m_bufferMemory, 0);
+    Buffer::Copy(device, stagingBuffer, m_buffer, stagingInfo.size);
 }
+
+//vk::DeviceSize bufferSize = sizeof(mp_vertices[0]) * mp_vertices->size();
+//
+//vk::BufferCreateInfo stagingInfo{ .size = bufferSize, .usage = vk::BufferUsageFlagBits::eTransferSrc, .sharingMode = vk::SharingMode::eExclusive };
+//vk::raii::Buffer stagingBuffer(device, stagingInfo);
+//vk::MemoryRequirements memRequirementsStaging = stagingBuffer.getMemoryRequirements();
+//vk::MemoryAllocateInfo memoryAllocateInfoStaging{ .allocationSize = memRequirementsStaging.size,
+//    .memoryTypeIndex = Buffer::FindMemoryType(memRequirementsStaging.memoryTypeBits, vk::MemoryPropertyFlagBits::eHostVisible | vk::MemoryPropertyFlagBits::eHostCoherent) };
+//vk::raii::DeviceMemory stagingBufferMemory(device, memoryAllocateInfoStaging);
+//
+//stagingBuffer.bindMemory(stagingBufferMemory, 0);
+//void* dataStaging = stagingBufferMemory.mapMemory(0, stagingInfo.size);
+//memcpy(dataStaging, mp_vertices->data(), stagingInfo.size);
+//stagingBufferMemory.unmapMemory();
+//
+//vk::BufferCreateInfo bufferInfo{ .size = bufferSize, .usage = vk::BufferUsageFlagBits::eVertexBuffer | vk::BufferUsageFlagBits::eTransferDst, .sharingMode = vk::SharingMode::eExclusive };
+//m_buffer = vk::raii::Buffer(device, bufferInfo);
+//
+//vk::MemoryRequirements memRequirements = m_buffer.getMemoryRequirements();
+//vk::MemoryAllocateInfo memoryAllocateInfo{ .allocationSize = memRequirements.size, .memoryTypeIndex = Buffer::FindMemoryType(memRequirements.memoryTypeBits, vk::MemoryPropertyFlagBits::eDeviceLocal) };
+//m_bufferMemory = vk::raii::DeviceMemory(device, memoryAllocateInfo);
+//
+//m_buffer.bindMemory(*m_bufferMemory, 0);
+//Buffer::Copy(device, stagingBuffer, m_buffer, stagingInfo.size);
