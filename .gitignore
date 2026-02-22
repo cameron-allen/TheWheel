@@ -3,3 +3,4 @@ out
 build
 *.pdb
 *.idb
+captures
