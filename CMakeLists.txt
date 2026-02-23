@@ -34,6 +34,7 @@ find_package(Vulkan REQUIRED)
 find_package(SDL3 CONFIG REQUIRED)
 find_package(glm CONFIG REQUIRED)
 find_package(imgui CONFIG REQUIRED)
+find_package(VulkanMemoryAllocator CONFIG REQUIRED)
 
 find_program(SLANGC_EXECUTABLE NAMES slangc REQUIRED)
 message(STATUS "Using Slang compiler: ${SLANGC_EXECUTABLE}")
@@ -48,6 +49,7 @@ target_precompile_headers(GeometryLib PRIVATE
 target_link_libraries(GeometryLib PRIVATE 
     Vulkan::Vulkan 
     glm::glm-header-only
+    GPUOpen::VulkanMemoryAllocator
 )
 
 target_include_directories(GeometryLib PRIVATE 
