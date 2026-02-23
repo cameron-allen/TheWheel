@@ -20,6 +20,8 @@ class Core
 
 private:
 	vk::PhysicalDeviceMemoryProperties m_pDMemoryProperties;
+	vk::raii::Device m_device = nullptr;
+	vk::raii::Pipeline m_graphicsPipeline = nullptr;
 	vk::raii::CommandPool m_commandPools[3] = { nullptr, nullptr, nullptr };
 	std::vector<vk::raii::CommandBuffer> m_commandBuffers[3];
 	std::vector<vk::Image> m_swapChainImages;
@@ -27,23 +29,23 @@ private:
 	std::vector<vk::raii::Semaphore> m_presentCompleteSemaphores;
 	std::vector<vk::raii::Semaphore> m_renderFinishedSemaphores;
 	std::vector<vk::raii::Fence> m_inFlightFences;
-	vk::raii::Queue m_queues[4] = { nullptr, nullptr, nullptr, nullptr };
-	vk::raii::Context m_context{};
-	vk::raii::Instance m_instance = nullptr;
 	vk::raii::DebugUtilsMessengerEXT m_debugMessenger = nullptr;
-	vk::raii::Device m_device = nullptr;
+	vk::raii::Queue m_queues[4] = { nullptr, nullptr, nullptr, nullptr };
+	vk::raii::Instance m_instance = nullptr;
+	vk::Extent2D m_swapChainExtent;
+	vk::raii::Context m_context{};
 	vk::raii::PhysicalDevice m_dGPU = nullptr;
-	vk::raii::Pipeline m_graphicsPipeline = nullptr;
 	vk::raii::SurfaceKHR m_surface = nullptr; 
 	vk::raii::SwapchainKHR m_swapChain = nullptr;
 
-	vk::Format m_swapChainSurfaceFormat = vk::Format::eUndefined;
-	vk::Extent2D m_swapChainExtent;
-	SDLWindow* mp_window = nullptr;
 	//		 graphics, compute, transfer, present
 	uint32_t m_familyIndices[4] = { 0, 0, 0, 0 };
-	uint32_t m_currentFrame = 0;
+
+	vk::Format m_swapChainSurfaceFormat = vk::Format::eUndefined;
 	uint32_t m_semaphoreIndex = 0;
+	SDLWindow* mp_window = nullptr;
+
+	uint32_t m_currentFrame = 0;
 
 	bool m_framebufferResized = false;
 	

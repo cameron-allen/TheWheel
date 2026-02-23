@@ -33,13 +33,13 @@ void Buffer::Create(
 	bufferMemory = vk::raii::DeviceMemory(device, allocInfo);
 	buffer.bindMemory(*bufferMemory, 0);
 }
-#include <iostream>
 
 void Buffer::Copy(
 	vk::raii::Device& device, 
 	vk::raii::Buffer& srcBuffer, 
 	vk::raii::Buffer& dstBuffer,
-	vk::DeviceSize size) 
+	vk::DeviceSize size,
+	vk::DeviceSize dstOffset)
 {
 	Core& core = Core::GetInstance();
 	vk::raii::CommandPool& cPool = core.getCommandPool(QType::Transfer);
@@ -47,7 +47,7 @@ void Buffer::Copy(
 	vk::CommandBufferAllocateInfo allocInfo{ .commandPool = cPool, .level = vk::CommandBufferLevel::ePrimary, .commandBufferCount = 1 };
 	vk::raii::CommandBuffer commandCopyBuffer = std::move(device.allocateCommandBuffers(allocInfo).front());
 	commandCopyBuffer.begin(vk::CommandBufferBeginInfo{ .flags = vk::CommandBufferUsageFlagBits::eOneTimeSubmit });
-	commandCopyBuffer.copyBuffer(srcBuffer, dstBuffer, vk::BufferCopy(0, 0, size));
+	commandCopyBuffer.copyBuffer(srcBuffer, dstBuffer, vk::BufferCopy(0, dstOffset, size));
 	commandCopyBuffer.end();
 	queue.submit(vk::SubmitInfo{.commandBufferCount = 1, .pCommandBuffers = &*commandCopyBuffer}, nullptr);
 	

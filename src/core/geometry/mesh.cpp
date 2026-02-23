@@ -1,10 +1,7 @@
 #include "core/geometry/mesh.h"
-#include "core/engine.h"
 
-void Mesh::init(vk::raii::Device& device)
+void Mesh::draw(vk::raii::CommandBuffer& cmd)
 {
-	// TODO: change copyBuffer function to not use waitIdle and wait for fences instead 
-	// (this should be done after this init method is called)
-	m_vBuff.initBuffer(device);
-	m_iBuff.initBuffer(device);
+	m_buffer.bind(cmd);
+	cmd.drawIndexed(m_buffer.getIndicesCount(), 1, 0, 0, 0);
 }

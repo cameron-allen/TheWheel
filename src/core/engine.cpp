@@ -15,10 +15,10 @@ const std::vector<Vertex> vertex_data =
     {{-0.5f, 0.5f}, {1.0f, 1.0f, 1.0f}}
 };
 
-const std::vector<uint32_t> index_data =
+const std::vector<uint16_t> index_data =
 { 0, 1, 2, 2, 3, 0 };
 
-Mesh triangle{ &vertex_data, &index_data };
+Mesh triangle;
 
 // More info for Vulkan debug configuration at the bottom of this page:
 // https://docs.vulkan.org/tutorial/latest/03_Drawing_a_triangle/00_Setup/02_Validation_layers.html
@@ -569,7 +569,7 @@ void Core::createSyncObjects()
 void Core::createMeshes()
 {
     m_pDMemoryProperties = m_dGPU.getMemoryProperties();
-    triangle.init(m_device);
+    triangle.init(m_device, &vertex_data, &index_data);
 }
 
 void Core::recordCommandBuffer(uint32_t imageIndex)
@@ -608,10 +608,8 @@ void Core::recordCommandBuffer(uint32_t imageIndex)
     graphicsBuffers[m_currentFrame].setViewport(0, vk::Viewport(0.0f, 0.0f, static_cast<float>(m_swapChainExtent.width), static_cast<float>(m_swapChainExtent.height), 0.0f, 1.0f));
     graphicsBuffers[m_currentFrame].setScissor(0, vk::Rect2D(vk::Offset2D(0, 0), m_swapChainExtent));
     
-    graphicsBuffers[m_currentFrame].bindVertexBuffers(0, triangle.getVertexBuffer().getBuffer(), {0});
-    graphicsBuffers[m_currentFrame].bindIndexBuffer(triangle.getIndexBuffer().getBuffer(), 0, vk::IndexType::eUint32);
-    graphicsBuffers[m_currentFrame].drawIndexed(triangle.getIndexBuffer().getIndexSize(), 1, 0, 0, 0);
-    //graphicsBuffers[m_currentFrame].draw(3, 1, 0, 0);
+    // -----DRAW HERE-----
+    triangle.draw(graphicsBuffers[m_currentFrame]);
     
     graphicsBuffers[m_currentFrame].endRendering();
     

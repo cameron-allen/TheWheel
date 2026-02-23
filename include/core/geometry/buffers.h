@@ -5,6 +5,7 @@
 #include <glm/vec2.hpp>
 #include <glm/vec3.hpp>
 #include <glm/vec4.hpp>
+#include <type_traits>
 
 struct Vertex 
 {
@@ -35,7 +36,6 @@ protected:
 	vk::raii::DeviceMemory m_bufferMemory = nullptr;
 
 public:
-
 	//@brief Gets buffer
 	const vk::Buffer& getBuffer()
 	{ return *m_buffer; }
@@ -57,7 +57,8 @@ public:
 		vk::raii::Device& device,
 		vk::raii::Buffer& srcBuffer,
 		vk::raii::Buffer& dstBuffer,
-		vk::DeviceSize size);
+		vk::DeviceSize size,
+		vk::DeviceSize dstOffset = 0);
 
 	//@brief Queries and finds buffer memory requirements
 	static uint32_t FindMemoryType(uint32_t typeFilter, vk::MemoryPropertyFlags properties);
@@ -65,47 +66,52 @@ public:
 
 class IndexBuffer : public Buffer
 {
-	friend class Mesh;
-
 private:
-	// TODO: adjust mp_indices to be std::vector<uint16_t> if there are < 65535 unique vertices
-	std::vector<uint32_t> const* mp_indices;
+	size_t m_numIndices = 0;
 
 public:
-	IndexBuffer() : mp_indices(nullptr) {}
-	IndexBuffer(std::vector<uint32_t> const* _indices) : mp_indices(_indices) {}
-	// Creates deep copy when initBuffer is called
-	IndexBuffer(const IndexBuffer& _ib) : mp_indices(_ib.mp_indices) {}
+	IndexBuffer() {}
 
 	//@brief Initializes index buffer
-	void initBuffer(vk::raii::Device& device);
+	void initBuffer(vk::raii::Device& device, std::vector<uint32_t> const* indices);
 
-	void setIndices(std::vector<uint32_t> const* indices)
-	{ mp_indices = indices; }
-
-	size_t getIndexSize()
-	{ return mp_indices ? mp_indices->size() : 0; }
+	size_t getIndicesSize() const
+	{ return m_numIndices; }
 };
 
 class VertexBuffer : public Buffer
 {
-private:
-	std::vector<Vertex> const* mp_vertices;
-
 public:
-	VertexBuffer() : mp_vertices(nullptr) {}
-	VertexBuffer(std::vector<Vertex> const* _vertices) : mp_vertices(_vertices) {}
-	// Creates deep copy when initBuffer is called
-	VertexBuffer(const VertexBuffer& _vb) : mp_vertices(_vb.mp_vertices) {}
+	VertexBuffer() {}
 
 	//@brief Initializes vertex buffer
-	void initBuffer(vk::raii::Device& device);
+	void initBuffer(vk::raii::Device& device, std::vector<Vertex> const* vertices);
+};
 
-	//@brief Sets vertex data for vertex buffer
-	void setVertices(std::vector<Vertex> const* vertices)
-	{ mp_vertices = vertices; }
+template<typename T>
+concept IndexDataTypes = std::is_same_v<T, uint16_t> || std::is_same_v<T, uint32_t>;
 
-	//@brief Gets buffer
-	const vk::Buffer& getBuffer() 
-	{ return *m_buffer; }
+class VIBuffer : public Buffer 
+{
+private:
+	vk::DeviceSize m_indexOffset = 0;
+	size_t m_numIndices = 0;
+	bool m_indicesAre16bytes = true;
+
+public:
+	VIBuffer() {}
+
+	//@brief Initializes vertex and index buffers into one buffer
+	template<IndexDataTypes IndexDataType>
+	void initBuffer(
+		vk::raii::Device& device,
+		std::vector<Vertex> const* vertices,
+		std::vector<IndexDataType> const* indices);
+
+	//@brief Binds vertex and index buffers
+	void bind(vk::raii::CommandBuffer& cmd);
+
+	//@brief Gets indices count
+	size_t getIndicesCount() const
+	{ return m_numIndices; }
 };
