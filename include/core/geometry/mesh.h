@@ -16,4 +16,7 @@ public:
 
 	//@brief Binds vertex and index buffers and draws
 	void draw(vk::raii::CommandBuffer& cmd);
+
+	void destroy()
+	{ m_buffer.destroy(); }
 };

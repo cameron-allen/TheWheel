@@ -49,6 +49,7 @@ target_precompile_headers(GeometryLib PRIVATE
 target_link_libraries(GeometryLib PRIVATE 
     Vulkan::Vulkan 
     glm::glm-header-only
+    PUBLIC
     GPUOpen::VulkanMemoryAllocator
 )
 

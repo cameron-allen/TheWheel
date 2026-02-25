@@ -6,6 +6,19 @@
 #include <glm/vec3.hpp>
 #include <glm/vec4.hpp>
 #include <type_traits>
+#include <vma/vk_mem_alloc.h>
+
+
+namespace Allocator 
+{
+	void init(vk::raii::Instance& instance,
+		vk::raii::PhysicalDevice& physicalDevice,
+		vk::raii::Device& device);
+
+	VmaAllocator& getAllocator();
+
+	void clean();
+};
 
 struct Vertex 
 {
@@ -32,31 +45,42 @@ struct Vertex
 class Buffer 
 {
 protected:
-	vk::raii::Buffer m_buffer = nullptr;
-	vk::raii::DeviceMemory m_bufferMemory = nullptr;
-
+	VkBuffer m_buffer = VK_NULL_HANDLE;
+	VmaAllocation m_allocation = VK_NULL_HANDLE;
+	
 public:
 	//@brief Gets buffer
-	const vk::Buffer& getBuffer()
-	{ return *m_buffer; }
+	const VkBuffer& getBuffer()
+	{ return m_buffer; }
+
+	//@brief Deallocates buffer CPU and GPU memory
+	void destroy() 
+	{
+		if (m_buffer != VK_NULL_HANDLE) {
+			vmaDestroyBuffer(Allocator::getAllocator(), m_buffer, m_allocation);
+			m_buffer = VK_NULL_HANDLE;
+			m_allocation = VK_NULL_HANDLE;
+		}
+	}
 
 
 	// -----Helpers-----
 
 	//@brief Creates a buffer from a set of specifications (i.e. size, usage, properties)
-	static void Create(
+	//@return Mapped data if VMA_ALLOCATION_CREATE_MAPPED_BIT allocation flag is present
+	static VmaAllocation Create(
 		vk::raii::Device& device,
 		vk::DeviceSize size,
-		vk::BufferUsageFlags usage,
-		vk::MemoryPropertyFlags properties,
-		vk::raii::Buffer& buffer,
-		vk::raii::DeviceMemory& bufferMemory);
+		VkBufferUsageFlags usage,
+		VkMemoryPropertyFlags properties,
+		VkBuffer& buffer,
+		unsigned int allocFlags = 0);
 
 	//@brief Copies source buffer into destination buffer
 	static void Copy(
 		vk::raii::Device& device,
-		vk::raii::Buffer& srcBuffer,
-		vk::raii::Buffer& dstBuffer,
+		VkBuffer& srcBuffer,
+		VkBuffer& dstBuffer,
 		vk::DeviceSize size,
 		vk::DeviceSize dstOffset = 0);
 
@@ -95,8 +119,8 @@ class VIBuffer : public Buffer
 {
 private:
 	vk::DeviceSize m_indexOffset = 0;
-	size_t m_numIndices = 0;
-	bool m_indicesAre16bytes = true;
+	uint32_t m_numIndices = 0;
+	bool m_indicesAre16bits = true;
 
 public:
 	VIBuffer() {}
@@ -112,6 +136,6 @@ public:
 	void bind(vk::raii::CommandBuffer& cmd);
 
 	//@brief Gets indices count
-	size_t getIndicesCount() const
+	uint32_t getIndicesCount() const
 	{ return m_numIndices; }
 };

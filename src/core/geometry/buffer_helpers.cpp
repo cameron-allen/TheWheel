@@ -1,20 +1,53 @@
 #include "core/geometry/buffers.h"
 #include "core/engine.h"
 
-void Buffer::Create(
+#define VMA_IMPLEMENTATION
+#include <vma/vk_mem_alloc.h>
+
+VmaAllocator allocator = VK_NULL_HANDLE;
+
+VmaAllocator& Allocator::getAllocator()
+{
+	return allocator;
+}
+
+void Allocator::init(vk::raii::Instance& instance,
+	vk::raii::PhysicalDevice& physicalDevice,
+	vk::raii::Device& device) 
+{
+	VmaAllocatorCreateInfo info{};
+	info.instance = *instance;               // VkInstance
+	info.physicalDevice = *physicalDevice;   // VkPhysicalDevice
+	info.device = *device;                   // VkDevice
+
+	VkResult r = vmaCreateAllocator(&info, &allocator);
+	if (r != VK_SUCCESS) {
+		throw std::runtime_error("vmaCreateAllocator failed");
+	}
+}
+
+void Allocator::clean() 
+{
+	if (allocator) {
+		vmaDestroyAllocator(allocator);
+		allocator = VK_NULL_HANDLE;
+	}
+}
+
+VmaAllocation Buffer::Create(
 	vk::raii::Device& device,
 	vk::DeviceSize size, 
-	vk::BufferUsageFlags usage, 
-	vk::MemoryPropertyFlags properties,
-	vk::raii::Buffer& buffer, 
-	vk::raii::DeviceMemory& bufferMemory)
+	VkBufferUsageFlags usage, 
+	VkMemoryPropertyFlags properties,
+	VkBuffer& buffer,
+	unsigned int allocFlags)
 {
 	Core& c = Core::GetInstance();
-	vk::BufferCreateInfo bufferInfo{ .size = size, .usage = usage};
+	VkBufferCreateInfo bufferInfo{ .size = size, .usage = usage};
 
 	if (c.getQueueFamilyIndex(QType::Graphics) == c.getQueueFamilyIndex(QType::Transfer))
 	{
-		bufferInfo.setSharingMode(vk::SharingMode::eExclusive);
+		bufferInfo.sharingMode = VkSharingMode::VK_SHARING_MODE_EXCLUSIVE;
 	}
 	else
 	{
@@ -22,22 +55,27 @@ void Buffer::Create(
 			c.getQueueFamilyIndex(QType::Graphics),
 			c.getQueueFamilyIndex(QType::Transfer)
 		};
-		bufferInfo.setSharingMode(vk::SharingMode::eConcurrent);
-		bufferInfo.setQueueFamilyIndexCount(2);
-		bufferInfo.setPQueueFamilyIndices(qFamilyIndices);
+		bufferInfo.sharingMode = VkSharingMode::VK_SHARING_MODE_CONCURRENT;
+		bufferInfo.queueFamilyIndexCount = 2;
+		bufferInfo.pQueueFamilyIndices = qFamilyIndices;
 	}
-	
-	buffer = vk::raii::Buffer(device, bufferInfo);
-	vk::MemoryRequirements memRequirements = buffer.getMemoryRequirements();
-	vk::MemoryAllocateInfo allocInfo{ .allocationSize = memRequirements.size, .memoryTypeIndex = FindMemoryType(memRequirements.memoryTypeBits, properties) };
-	bufferMemory = vk::raii::DeviceMemory(device, allocInfo);
-	buffer.bindMemory(*bufferMemory, 0);
+
+	bufferInfo.sType = VkStructureType::VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+	//buffer = vk::raii::Buffer(device, bufferInfo);
+
+	VmaAllocationCreateInfo allocCreateInfo = {};
+	allocCreateInfo.usage = VMA_MEMORY_USAGE_AUTO;
+	allocCreateInfo.flags = allocFlags;
+
+	VmaAllocation allocation;
+	vmaCreateBuffer(allocator, &bufferInfo, &allocCreateInfo, &buffer, &allocation, nullptr);
+	return allocation;
 }
 
 void Buffer::Copy(
 	vk::raii::Device& device, 
-	vk::raii::Buffer& srcBuffer, 
-	vk::raii::Buffer& dstBuffer,
+	VkBuffer& srcBuffer, 
+	VkBuffer& dstBuffer,
 	vk::DeviceSize size,
 	vk::DeviceSize dstOffset)
 {

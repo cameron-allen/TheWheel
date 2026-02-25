@@ -568,6 +568,8 @@ void Core::createSyncObjects()
 
 void Core::createMeshes()
 {
+    Allocator::init(m_instance, m_dGPU, m_device);
+
     m_pDMemoryProperties = m_dGPU.getMemoryProperties();
     triangle.init(m_device, &vertex_data, &index_data);
 }
@@ -886,7 +888,8 @@ void Core::clean()
     cleanSwapChain();
 
     //TODO clean SD3
-
+    triangle.destroy();
+    Allocator::clean();
     mp_window->clean();
     delete(mp_window);
 }
