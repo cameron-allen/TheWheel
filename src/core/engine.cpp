@@ -291,6 +291,8 @@ void Core::setupLogicalDevice()
     m_queues[QType::Compute] = vk::raii::Queue(m_device, m_familyIndices[QType::Compute], queueIndices[QType::Compute - 1]);
     m_queues[QType::Transfer] = vk::raii::Queue(m_device, m_familyIndices[QType::Transfer], queueIndices[QType::Transfer - 1]);
     m_queues[QType::Present] = vk::raii::Queue(m_device, m_familyIndices[QType::Present], queueIndices[QType::Present - 1]);
+
+    VULKAN_HPP_DEFAULT_DISPATCHER.init(*m_device);
 }
 
 bool Core::suitableDiscreteGPU(const vk::raii::PhysicalDevice& device)
@@ -837,6 +839,8 @@ void Core::init()
             std::cout << "--------------------\n";
         }
 
+        VULKAN_HPP_DEFAULT_DISPATCHER.init(vkGetInstanceProcAddr);
+
         vk::InstanceCreateInfo createInfo{
             .sType = vk::StructureType::eInstanceCreateInfo,
             .pApplicationInfo = &appInfo,
@@ -847,6 +851,7 @@ void Core::init()
         };
 
         m_instance = vk::raii::Instance{ m_context, createInfo };
+        VULKAN_HPP_DEFAULT_DISPATCHER.init(*m_instance);
 
 #ifndef NDEBUG
         setupDebugMessenger();

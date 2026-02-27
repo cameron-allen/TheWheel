@@ -61,7 +61,6 @@ VmaAllocation Buffer::Create(
 	}
 
 	bufferInfo.sType = VkStructureType::VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
-	//buffer = vk::raii::Buffer(device, bufferInfo);
 
 	VmaAllocationCreateInfo allocCreateInfo = {};
 	allocCreateInfo.usage = VMA_MEMORY_USAGE_AUTO;
@@ -87,10 +86,30 @@ void Buffer::Copy(
 	commandCopyBuffer.begin(vk::CommandBufferBeginInfo{ .flags = vk::CommandBufferUsageFlagBits::eOneTimeSubmit });
 	commandCopyBuffer.copyBuffer(srcBuffer, dstBuffer, vk::BufferCopy(0, dstOffset, size));
 	commandCopyBuffer.end();
-	queue.submit(vk::SubmitInfo{.commandBufferCount = 1, .pCommandBuffers = &*commandCopyBuffer}, nullptr);
-	
-	// NOTE: might want to use vkWaitForFences instead to allow for scheduling multiple copies at once
+
+	queue.submit(vk::SubmitInfo{ .commandBufferCount = 1, .pCommandBuffers = &*commandCopyBuffer }, nullptr);
 	queue.waitIdle();
+}
+
+CopyInfo Buffer::CopyAndReturn(
+	vk::raii::Device& device,
+	VkBuffer& srcBuffer,
+	VkBuffer& dstBuffer,
+	vk::DeviceSize size,
+	vk::DeviceSize dstOffset) 
+{
+	Core& core = Core::GetInstance();
+	vk::raii::CommandPool& cPool = core.getCommandPool(QType::Transfer);
+	vk::raii::Queue& queue = core.getQueue(QType::Transfer);
+	vk::CommandBufferAllocateInfo allocInfo{ .commandPool = cPool, .level = vk::CommandBufferLevel::ePrimary, .commandBufferCount = 1 };
+	vk::raii::CommandBuffer commandCopyBuffer = std::move(device.allocateCommandBuffers(allocInfo).front());
+	vk::raii::Fence fence(device, vk::FenceCreateInfo{});
+	commandCopyBuffer.begin(vk::CommandBufferBeginInfo{ .flags = vk::CommandBufferUsageFlagBits::eOneTimeSubmit });
+	commandCopyBuffer.copyBuffer(srcBuffer, dstBuffer, vk::BufferCopy(0, dstOffset, size));
+	commandCopyBuffer.end();
+
+	queue.submit(vk::SubmitInfo{ .commandBufferCount = 1, .pCommandBuffers = &*commandCopyBuffer }, *fence);
+	return CopyInfo{ .cmd = std::move(commandCopyBuffer), .fence = std::move(fence) };
 }
 
 uint32_t Buffer::FindMemoryType(uint32_t typeFilter, vk::MemoryPropertyFlags properties)

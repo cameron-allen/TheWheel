@@ -1,5 +1,6 @@
 #include "core/geometry/buffers.h"
-#include <vma/vk_mem_alloc.h>
+
+VULKAN_HPP_DEFAULT_DISPATCH_LOADER_DYNAMIC_STORAGE
 
 template<IndexDataTypes IndexDataType>
 void VIBuffer::initBuffer(
@@ -10,9 +11,10 @@ void VIBuffer::initBuffer(
     if (std::is_same_v<IndexDataType, uint32_t>)
         m_indicesAre16bits = false;
 
+    VmaAllocation allocs[2];
     VmaAllocator& allocator = Allocator::getAllocator();
     m_numIndices = indices->size();
-    VkBuffer stagingBuffer({});
+    VkBuffer sBuffer1({}), sBuffer2({});
     m_indexOffset = sizeof((*vertices)[0]) * vertices->size();
     vk::DeviceSize indexBuffSize = sizeof((*indices)[0]) * m_numIndices;
 
@@ -27,39 +29,42 @@ void VIBuffer::initBuffer(
         VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT);
 
     //-----VERTEX-----
-    VmaAllocation allocation = Buffer::Create(
+    allocs[0] = Buffer::Create(
         device,
         m_indexOffset,
         VkBufferUsageFlagBits::VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
         VkMemoryPropertyFlagBits::VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
         VkMemoryPropertyFlagBits::VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
-        stagingBuffer,
+        sBuffer1,
         VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT);
 
     void* data = nullptr;
-    vmaMapMemory(allocator, allocation, &data);
+    vmaMapMemory(allocator, allocs[0], &data);
     memcpy(data, vertices->data(), (size_t)m_indexOffset);
-    vmaUnmapMemory(allocator, allocation);
+    vmaUnmapMemory(allocator, allocs[0]);
     
-    Buffer::Copy(device, stagingBuffer, m_buffer, m_indexOffset);
-    vmaDestroyBuffer(allocator, stagingBuffer, allocation);
+    CopyInfo stagingBufferCopyInfo = Buffer::CopyAndReturn(device, sBuffer1, m_buffer, m_indexOffset);
 
     //-----INDEX-----
-    allocation = Buffer::Create(
+    allocs[1] = Buffer::Create(
         device,
         indexBuffSize,
         VkBufferUsageFlagBits::VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
         VkMemoryPropertyFlagBits::VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
         VkMemoryPropertyFlagBits::VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
-        stagingBuffer,
+        sBuffer2,
         VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT);
 
-    vmaMapMemory(allocator, allocation, &data);
+    vmaMapMemory(allocator, allocs[1], &data);
     memcpy(data, indices->data(), (size_t)indexBuffSize);
-    vmaUnmapMemory(allocator, allocation);
+    vmaUnmapMemory(allocator, allocs[1]);
 
-    Buffer::Copy(device, stagingBuffer, m_buffer, indexBuffSize, m_indexOffset);
-    vmaDestroyBuffer(allocator, stagingBuffer, allocation);
+    CopyInfo bufferCopyInfo = Buffer::CopyAndReturn(device, sBuffer2, m_buffer, indexBuffSize, m_indexOffset);
+    
+    vk::Fence fences[2] = {*stagingBufferCopyInfo.fence, *bufferCopyInfo.fence};
+    vk::Result res = device.waitForFences(fences, VK_TRUE, UINT64_MAX);
+    vmaDestroyBuffer(allocator, sBuffer1, allocs[0]);
+    vmaDestroyBuffer(allocator, sBuffer2, allocs[1]);
 }
 
 template void VIBuffer::initBuffer(vk::raii::Device&,

@@ -42,6 +42,12 @@ struct Vertex
 	}
 };
 
+struct CopyInfo
+{
+	vk::raii::CommandBuffer cmd;
+	vk::raii::Fence fence;
+};
+
 class Buffer 
 {
 protected:
@@ -78,6 +84,14 @@ public:
 
 	//@brief Copies source buffer into destination buffer
 	static void Copy(
+		vk::raii::Device& device,
+		VkBuffer& srcBuffer,
+		VkBuffer& dstBuffer,
+		vk::DeviceSize size,
+		vk::DeviceSize dstOffset = 0);
+
+	//@brief Copies source buffer into destination buffer and returns struct that contains the copy CommandBuffer and Fence
+	static CopyInfo CopyAndReturn(
 		vk::raii::Device& device,
 		VkBuffer& srcBuffer,
 		VkBuffer& dstBuffer,
