@@ -6,6 +6,13 @@
 #include "core/window.h"
 
 #include "core/geometry/mesh.h"
+#include "core/renderer.h"
+
+#include <glm/glm.hpp>
+#include <glm/gtc/matrix_transform.hpp>
+#include <chrono>
+
+Renderer* pRenderer = nullptr;
 
 const std::vector<Vertex> vertex_data =
 {
@@ -76,7 +83,7 @@ void Core::transitionImageLayout(
         .imageMemoryBarrierCount = 1,
         .pImageMemoryBarriers = &barrier
     };
-    m_commandBuffers[QType::Graphics][m_currentFrame].pipelineBarrier2(dependencyInfo);
+    m_commandBuffers[QType::Graphics][m_frameIndex].pipelineBarrier2(dependencyInfo);
 }
 
 void Core::setupDebugMessenger()
@@ -400,6 +407,13 @@ void Core::createImageViews()
     }
 }
 
+void Core::createDescriptorLayout() 
+{
+    vk::DescriptorSetLayoutBinding uboLayoutBinding(0, vk::DescriptorType::eUniformBuffer, 1, vk::ShaderStageFlagBits::eVertex, nullptr);
+    vk::DescriptorSetLayoutCreateInfo layoutInfo{ .bindingCount = 1, .pBindings = &uboLayoutBinding };
+    m_descriptorSetLayout = vk::raii::DescriptorSetLayout(m_device, layoutInfo);
+}
+
 void Core::createGraphicsPipeline()
 {   
     vk::raii::ShaderModule vertModule = createShaderModule(ReadFile("..\\..\\..\\out\\shaders\\triangle.vert.spv")),
@@ -452,7 +466,7 @@ void Core::createGraphicsPipeline()
         .rasterizerDiscardEnable = vk::False,
         .polygonMode = vk::PolygonMode::eFill, 
         .cullMode = vk::CullModeFlagBits::eBack,
-        .frontFace = vk::FrontFace::eClockwise, 
+        .frontFace = vk::FrontFace::eCounterClockwise, 
         .depthBiasEnable = vk::False,
         .depthBiasSlopeFactor = 1.0f, 
         .lineWidth = 1.0f 
@@ -487,12 +501,12 @@ void Core::createGraphicsPipeline()
     };
 
     // For uniforms
-    vk::raii::PipelineLayout pipelineLayout = nullptr;
     vk::PipelineLayoutCreateInfo pipelineLayoutInfo{ 
-        .setLayoutCount = 0, 
-        .pushConstantRangeCount = 0 
+        .setLayoutCount = 1, 
+        .pSetLayouts = &*m_descriptorSetLayout, 
+        .pushConstantRangeCount = 0
     };
-    pipelineLayout = vk::raii::PipelineLayout(m_device, pipelineLayoutInfo);
+    m_pipelineLayout = vk::raii::PipelineLayout(m_device, pipelineLayoutInfo);
 
     vk::PipelineRenderingCreateInfo pipelineRenderingCreateInfo{ 
         .colorAttachmentCount = 1, 
@@ -505,7 +519,7 @@ void Core::createGraphicsPipeline()
         .pVertexInputState = &vertexInputInfo, .pInputAssemblyState = &inputAssembly,
         .pViewportState = &viewportState, .pRasterizationState = &rasterizer,
         .pMultisampleState = &multisampling, .pColorBlendState = &colorBlending,
-        .pDynamicState = &dynamicState, .layout = pipelineLayout, .renderPass = nullptr,
+        .pDynamicState = &dynamicState, .layout = m_pipelineLayout, .renderPass = nullptr,
         .basePipelineHandle = VK_NULL_HANDLE, .basePipelineIndex = -1
     };
 
@@ -576,10 +590,36 @@ void Core::createMeshes()
     triangle.init(m_device, &vertex_data, &index_data);
 }
 
+void Core::createUBOs() 
+{
+    m_uniformBuffers.clear();
+    m_uniformBufferAllocations.clear();
+    m_uniformBuffersMapped.clear();
+    VmaAllocator& allocator = Allocator::getAllocator();
+    for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
+        vk::DeviceSize bufferSize = sizeof(UniformBufferObject);
+        VkBuffer buffer({});
+        VmaAllocationInfo allocInfo{};
+        m_uniformBufferAllocations.push_back(
+            Buffer::Create(
+                m_device, 
+                bufferSize, 
+                VkBufferUsageFlagBits::VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, 
+                VkMemoryPropertyFlagBits::VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VkMemoryPropertyFlagBits::VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, 
+                buffer,
+                VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT));
+        
+        void* data = nullptr;
+        vmaMapMemory(allocator, m_uniformBufferAllocations[i], &data);
+        m_uniformBuffers.emplace_back(vk::Buffer(std::move(buffer)));
+        m_uniformBuffersMapped.emplace_back(data);
+    }
+}
+
 void Core::recordCommandBuffer(uint32_t imageIndex)
 {
-    auto& graphicsBuffers = m_commandBuffers[QType::Graphics];
-    graphicsBuffers[m_currentFrame].begin({});
+    auto& cmd = m_commandBuffers[QType::Graphics][m_frameIndex];
+    cmd.begin({});
     // Before starting rendering, transition the swapchain image to COLOR_ATTACHMENT_OPTIMAL
     transitionImageLayout(
         imageIndex,
@@ -607,15 +647,17 @@ void Core::recordCommandBuffer(uint32_t imageIndex)
         .pColorAttachments = &attachmentInfo 
     };
 
-    graphicsBuffers[m_currentFrame].beginRendering(renderingInfo);
-    graphicsBuffers[m_currentFrame].bindPipeline(vk::PipelineBindPoint::eGraphics, *m_graphicsPipeline);
-    graphicsBuffers[m_currentFrame].setViewport(0, vk::Viewport(0.0f, 0.0f, static_cast<float>(m_swapChainExtent.width), static_cast<float>(m_swapChainExtent.height), 0.0f, 1.0f));
-    graphicsBuffers[m_currentFrame].setScissor(0, vk::Rect2D(vk::Offset2D(0, 0), m_swapChainExtent));
+    cmd.beginRendering(renderingInfo);
+    cmd.bindPipeline(vk::PipelineBindPoint::eGraphics, *m_graphicsPipeline);
+    cmd.setViewport(0, vk::Viewport(0.0f, 0.0f, static_cast<float>(m_swapChainExtent.width), static_cast<float>(m_swapChainExtent.height), 0.0f, 1.0f));
+    cmd.setScissor(0, vk::Rect2D(vk::Offset2D(0, 0), m_swapChainExtent));
     
     // -----DRAW HERE-----
-    triangle.draw(graphicsBuffers[m_currentFrame]);
+    triangle.bind(cmd);
+    cmd.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, m_pipelineLayout, 0, *m_descriptorSets[m_frameIndex], nullptr);
+    triangle.draw(cmd);
     
-    graphicsBuffers[m_currentFrame].endRendering();
+    cmd.endRendering();
     
     // After rendering, transition the swapchain image to PRESENT_SRC
     transitionImageLayout(
@@ -628,7 +670,7 @@ void Core::recordCommandBuffer(uint32_t imageIndex)
         vk::PipelineStageFlagBits2::eBottomOfPipe                  // dstStage
     );
 
-    graphicsBuffers[m_currentFrame].end();
+    cmd.end();
 }
 
 vk::raii::ShaderModule Core::createShaderModule(const std::vector<char>& code) const
@@ -715,9 +757,68 @@ void Core::run()
 	clean();
 }
 
+void Core::updateUniformBuffers() 
+{
+    static auto startTime = std::chrono::high_resolution_clock::now();
+
+    auto currentTime = std::chrono::high_resolution_clock::now();
+    float time = std::chrono::duration<float, std::chrono::seconds::period>(currentTime - startTime).count();
+
+    UniformBufferObject ubo{};
+    ubo.model = rotate(glm::mat4(1.0f), time * glm::radians(90.0f), glm::vec3(0.0f, 0.0f, 1.0f));
+    ubo.view = lookAt(glm::vec3(2.0f, 2.0f, 2.0f), glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 0.0f, 1.0f));
+    ubo.proj = glm::perspective(glm::radians(45.0f), static_cast<float>(m_swapChainExtent.width) / static_cast<float>(m_swapChainExtent.height), 0.1f, 10.0f);
+    ubo.proj[1][1] *= -1;
+
+    memcpy(m_uniformBuffersMapped[m_frameIndex], &ubo, sizeof(ubo));
+}
+
+void Core::createDescriptorPool() 
+{
+    vk::DescriptorPoolSize poolSize(vk::DescriptorType::eUniformBuffer, MAX_FRAMES_IN_FLIGHT);
+    vk::DescriptorPoolCreateInfo poolInfo{ 
+        .flags = vk::DescriptorPoolCreateFlagBits::eFreeDescriptorSet, 
+        .maxSets = MAX_FRAMES_IN_FLIGHT, 
+        .poolSizeCount = 1, 
+        .pPoolSizes = &poolSize };
+
+    m_descriptorPool = vk::raii::DescriptorPool(m_device, poolInfo);
+}
+
+void Core::createDiscriptorSets() 
+{
+    std::vector<vk::DescriptorSetLayout> layouts(MAX_FRAMES_IN_FLIGHT, *m_descriptorSetLayout);
+   
+    vk::DescriptorSetAllocateInfo allocInfo{ 
+        .descriptorPool = m_descriptorPool, 
+        .descriptorSetCount = static_cast<uint32_t>(layouts.size()), 
+        .pSetLayouts = layouts.data() };
+
+    m_descriptorSets.clear();
+    m_descriptorSets = m_device.allocateDescriptorSets(allocInfo);
+
+    for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) 
+    {
+        vk::DescriptorBufferInfo bufferInfo{ 
+            .buffer = m_uniformBuffers[i], 
+            .offset = 0, 
+            .range = sizeof(UniformBufferObject) };
+
+        vk::WriteDescriptorSet descriptorWrite{ 
+            .dstSet = m_descriptorSets[i], 
+            .dstBinding = 0, 
+            .dstArrayElement = 0, 
+            .descriptorCount = 1, 
+            .descriptorType = vk::DescriptorType::eUniformBuffer, 
+            .pBufferInfo = &bufferInfo };
+
+        m_device.updateDescriptorSets(descriptorWrite, {});
+    }
+}
+
 void Core::draw()
 {
-    while (vk::Result::eTimeout == m_device.waitForFences(*m_inFlightFences[m_currentFrame], vk::True, UINT64_MAX));
+    while (vk::Result::eTimeout == m_device.waitForFences(*m_inFlightFences[m_frameIndex], vk::True, UINT64_MAX));
 
     auto [result, imageIndex] = m_swapChain.acquireNextImage(UINT64_MAX, *m_presentCompleteSemaphores[m_semaphoreIndex], nullptr);
 
@@ -731,9 +832,11 @@ void Core::draw()
         throw std::runtime_error("failed to acquire swap chain image!");
     }
 
-    m_device.resetFences(*m_inFlightFences[m_currentFrame]);
-    m_commandBuffers[QType::Graphics][m_currentFrame].reset();
+    m_device.resetFences(*m_inFlightFences[m_frameIndex]);
+    m_commandBuffers[QType::Graphics][m_frameIndex].reset();
     recordCommandBuffer(imageIndex);
+
+    updateUniformBuffers();
 
     vk::PipelineStageFlags waitDestinationStageMask(vk::PipelineStageFlagBits::eColorAttachmentOutput);
     const vk::SubmitInfo   submitInfo{ 
@@ -741,11 +844,11 @@ void Core::draw()
         .pWaitSemaphores = &*m_presentCompleteSemaphores[m_semaphoreIndex],
         .pWaitDstStageMask = &waitDestinationStageMask, 
         .commandBufferCount = 1, 
-        .pCommandBuffers = &*m_commandBuffers[QType::Graphics][m_currentFrame],
+        .pCommandBuffers = &*m_commandBuffers[QType::Graphics][m_frameIndex],
         .signalSemaphoreCount = 1, 
         .pSignalSemaphores = &*m_renderFinishedSemaphores[imageIndex]
     };
-    m_queues[QType::Graphics].submit(submitInfo, *m_inFlightFences[m_currentFrame]);
+    m_queues[QType::Graphics].submit(submitInfo, *m_inFlightFences[m_frameIndex]);
 
     try
     {
@@ -782,7 +885,7 @@ void Core::draw()
     }
     
     m_semaphoreIndex = (m_semaphoreIndex + 1) % m_presentCompleteSemaphores.size();
-    m_currentFrame = (m_currentFrame + 1) % MAX_FRAMES_IN_FLIGHT;
+    m_frameIndex = (m_frameIndex + 1) % MAX_FRAMES_IN_FLIGHT;
 }
 
 void Core::init()
@@ -861,9 +964,13 @@ void Core::init()
         setupLogicalDevice();
         createSwapChain();
         createImageViews();
+        createDescriptorLayout();
         createGraphicsPipeline();
         createCommandPools();
         createMeshes();
+        createUBOs();
+        createDescriptorPool();
+        createDiscriptorSets();
         createCommandBuffers();
         createSyncObjects();
     }
@@ -890,11 +997,18 @@ void Core::loop()
 
 void Core::clean()
 {
+    VmaAllocator allocator = Allocator::getAllocator();
     cleanSwapChain();
+    
+    for (int i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) 
+    {
+        vmaUnmapMemory(allocator, m_uniformBufferAllocations[i]);
+        vmaDestroyBuffer(allocator, static_cast<VkBuffer>(m_uniformBuffers[i]), m_uniformBufferAllocations[i]);
+    }
 
-    //TODO clean SD3
     triangle.destroy();
     Allocator::clean();
     mp_window->clean();
+    Renderer::GetInstance().clean();
     delete(mp_window);
 }

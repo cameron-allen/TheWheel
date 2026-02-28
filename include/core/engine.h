@@ -1,6 +1,8 @@
 #pragma once
 #include <vulkan/vulkan.hpp>
 #include <vulkan/vulkan_raii.hpp>
+#include <vma/vk_mem_alloc.h>
+#include <glm/mat4x4.hpp>
 
 // Queue Types
 enum QType 
@@ -29,6 +31,10 @@ private:
 	std::vector<vk::raii::Semaphore> m_presentCompleteSemaphores;
 	std::vector<vk::raii::Semaphore> m_renderFinishedSemaphores;
 	std::vector<vk::raii::Fence> m_inFlightFences;
+	std::vector<vk::Buffer> m_uniformBuffers;
+	std::vector<VmaAllocation> m_uniformBufferAllocations;
+	std::vector<void*> m_uniformBuffersMapped;
+	std::vector<vk::raii::DescriptorSet> m_descriptorSets;
 	vk::raii::DebugUtilsMessengerEXT m_debugMessenger = nullptr;
 	vk::raii::Queue m_queues[4] = { nullptr, nullptr, nullptr, nullptr };
 	vk::raii::Instance m_instance = nullptr;
@@ -37,6 +43,9 @@ private:
 	vk::raii::PhysicalDevice m_dGPU = nullptr;
 	vk::raii::SurfaceKHR m_surface = nullptr; 
 	vk::raii::SwapchainKHR m_swapChain = nullptr;
+	vk::raii::DescriptorSetLayout m_descriptorSetLayout = nullptr;
+	vk::raii::DescriptorPool m_descriptorPool = nullptr;
+	vk::raii::PipelineLayout m_pipelineLayout = nullptr;
 
 	//		 graphics, compute, transfer, present
 	uint32_t m_familyIndices[4] = { 0, 0, 0, 0 };
@@ -45,7 +54,7 @@ private:
 	uint32_t m_semaphoreIndex = 0;
 	SDLWindow* mp_window = nullptr;
 
-	uint32_t m_currentFrame = 0;
+	uint32_t m_frameIndex = 0;
 
 	bool m_framebufferResized = false;
 	
@@ -81,6 +90,8 @@ private:
 	void cleanSwapChain();
 	//@brief Creates image views
 	void createImageViews();
+	//@brief Creates descriptor bindings for shader pipeline
+	void createDescriptorLayout();
 	//@brief Creates graphics pipeline
 	void createGraphicsPipeline();
 	//@brief Initializes vk::raii::CommandPool 
@@ -89,8 +100,10 @@ private:
 	void createCommandBuffers();
 	//@brief Initializes rendering semaphores and fences
 	void createSyncObjects();
-
+	//@brief Initializes meshes
 	void createMeshes();
+	//@briefs Initializes uniform buffers
+	void createUBOs();
 
 	//@brief Writes commands into vk::raii::CommandBuffer
 	void recordCommandBuffer(uint32_t imageIndex);
@@ -105,6 +118,21 @@ private:
 	vk::PresentModeKHR chooseSwapPresentMode(const std::vector<vk::PresentModeKHR>& availablePresentModes);
 	//@brief Chooses swap chain surface extent
 	vk::Extent2D chooseSwapExtent(const vk::SurfaceCapabilitiesKHR& capabilities);
+	//brief Updates uniform buffers
+	void updateUniformBuffers();
+	//brief Creates descriptor pool
+	void createDescriptorPool();
+	//brief Creates descriptor sets
+	void createDiscriptorSets();
+
+	//@brief Executes rendering logic called each frame
+	void draw();
+	//@brief Initializes data members
+	void init();
+	//@brief Core engine loop
+	void loop();
+	//@brief Cleans engine data members
+	void clean();
 
 public:
 	//@brief Gets static instance
@@ -114,14 +142,6 @@ public:
 
 	//@brief Runs engine
 	void run();
-	//@brief Executes rendering logic called each frame
-	void draw();
-	//@brief Initializes data members
-	void init();
-	//@brief Core engine loop
-	void loop();
-	//@brief Cleans engine data members
-	void clean();
 
 	const vk::PhysicalDeviceMemoryProperties& getGPUMemoryProperties() const
 	{ return m_pDMemoryProperties; }
@@ -149,4 +169,9 @@ public:
 	//@return vk::raii::Queue&
 	vk::raii::Queue& getQueue(QType queueType)
 	{ return m_queues[queueType]; }
+};
+
+struct UniformBufferObject 
+{
+	glm::mat4 model, view, proj;
 };

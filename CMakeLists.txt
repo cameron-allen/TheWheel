@@ -26,9 +26,6 @@ message(STATUS "C++ standard: ${CMAKE_CXX_STANDARD}")
 # Avoid backslash issues with VULKAN_SDK on Windows
 file(TO_CMAKE_PATH "$ENV{VULKAN_SDK}" VULKAN_SDK_FIXED)
 
-# Print for sanity
-message(STATUS "Vulkan include dirs: ${Vulkan_INCLUDE_DIRS}")
-
 # Find packages
 find_package(Vulkan REQUIRED)
 find_package(SDL3 CONFIG REQUIRED)

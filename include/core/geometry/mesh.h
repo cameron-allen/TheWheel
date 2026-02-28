@@ -14,7 +14,10 @@ public:
 		std::vector<IndexDataType> const* indices) 
 	{ m_buffer.initBuffer(device, vertices, indices); }
 
-	//@brief Binds vertex and index buffers and draws
+	//brief Binds vertex and index buffers
+	void bind(vk::raii::CommandBuffer& cmd);
+
+	//@brief Draws
 	void draw(vk::raii::CommandBuffer& cmd);
 
 	void destroy()
