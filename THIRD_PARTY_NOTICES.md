@@ -1,0 +1,34 @@
+# Third Party Notices
+
+------------------------------------------------------------
+KTX-Software
+Copyright (c) The Khronos Group Inc.
+Licensed under the Apache License, Version 2.0.
+See licenses/Apache-2.0.txt.
+
+NOTICE:
+LICENSE.md
+
+------------------------------------------------------------
+GLM - OpenGL Mathematics
+Copyright (c) 2005 - G-Truc Creation
+Licensed under the MIT License.
+See licenses/GLM.txt.
+
+------------------------------------------------------------
+Dear ImGui
+Copyright (c) 2014-2026 Omar Cornut
+Licensed under the MIT License.
+See licenses/GLM.txt.
+
+------------------------------------------------------------
+Simple DirectMedia Layer (SDL)
+Copyright (C) 1997-2026 Sam Lantinga <slouken@libsdl.org>
+Licensed under the zlib License.
+See licenses/zlib.txt.
+
+------------------------------------------------------------
+Vulkan Memory Allocator
+Copyright (c) 2017-2026 Advanced Micro Devices, Inc. All rights reserved.
+Licensed under the MIT License.
+See licenses/GLM.txt.
