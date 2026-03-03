@@ -1,4 +1,4 @@
-# Third Party Notices
+Third Party Notices
 
 ------------------------------------------------------------
 KTX-Software
