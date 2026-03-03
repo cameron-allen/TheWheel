@@ -12,14 +12,14 @@ LICENSE.md
 ------------------------------------------------------------
 GLM - OpenGL Mathematics
 Copyright (c) 2005 - G-Truc Creation
-Licensed under the MIT License.
+GLM is licensed under The Happy Bunny License or MIT License
 See licenses/GLM.txt.
 
 ------------------------------------------------------------
 Dear ImGui
 Copyright (c) 2014-2026 Omar Cornut
 Licensed under the MIT License.
-See licenses/GLM.txt.
+See licenses/MIT.txt.
 
 ------------------------------------------------------------
 Simple DirectMedia Layer (SDL)
@@ -31,4 +31,10 @@ See licenses/zlib.txt.
 Vulkan Memory Allocator
 Copyright (c) 2017-2026 Advanced Micro Devices, Inc. All rights reserved.
 Licensed under the MIT License.
-See licenses/GLM.txt.
+See licenses/MIT.txt.
+
+------------------------------------------------------------
+stb
+Copyright (c) 2017 Sean Barrett
+Licensed under the MIT License.
+See licenses/MIT.txt.
