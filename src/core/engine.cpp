@@ -30,9 +30,6 @@ glm::mat4 render_matrix;
 
 Mesh triangle;
 
-// More info for Vulkan debug configuration at the bottom of this page:
-// https://docs.vulkan.org/tutorial/latest/03_Drawing_a_triangle/00_Setup/02_Validation_layers.html
-
 constexpr int MAX_FRAMES_IN_FLIGHT = 2;
 
 const std::vector<const char*> VALIDATION_LAYERS = {
