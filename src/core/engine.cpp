@@ -25,6 +25,9 @@ const std::vector<Vertex> vertex_data =
 const std::vector<uint16_t> index_data =
 { 0, 1, 2, 2, 3, 0 };
 
+UniformBufferObject constants;
+glm::mat4 render_matrix;
+
 Mesh triangle;
 
 // More info for Vulkan debug configuration at the bottom of this page:
@@ -500,17 +503,26 @@ void Core::createGraphicsPipeline()
         .pAttachments = &colorBlendAttachment 
     };
 
+    vk::PushConstantRange pcRange = vk::PushConstantRange
+    {
+        .stageFlags = vk::ShaderStageFlagBits::eVertex,
+        .offset = 0,
+        .size = sizeof(glm::mat4),
+    };
+
     // For uniforms
     vk::PipelineLayoutCreateInfo pipelineLayoutInfo{ 
         .setLayoutCount = 1, 
         .pSetLayouts = &*m_descriptorSetLayout, 
-        .pushConstantRangeCount = 0
+        .pushConstantRangeCount = 1,
+        .pPushConstantRanges = &pcRange
     };
     m_pipelineLayout = vk::raii::PipelineLayout(m_device, pipelineLayoutInfo);
+    
 
     vk::PipelineRenderingCreateInfo pipelineRenderingCreateInfo{ 
         .colorAttachmentCount = 1, 
-        .pColorAttachmentFormats = &m_swapChainSurfaceFormat 
+        .pColorAttachmentFormats = &m_swapChainSurfaceFormat
     };
 
     vk::GraphicsPipelineCreateInfo pipelineInfo{ 
@@ -654,7 +666,8 @@ void Core::recordCommandBuffer(uint32_t imageIndex)
     
     // -----DRAW HERE-----
     triangle.bind(cmd);
-    cmd.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, m_pipelineLayout, 0, *m_descriptorSets[m_frameIndex], nullptr);
+    //cmd.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, m_pipelineLayout, 0, *m_descriptorSets[m_frameIndex], nullptr);
+    cmd.pushConstants<glm::mat4>(m_pipelineLayout, vk::ShaderStageFlagBits::eVertex, 0, render_matrix);
     triangle.draw(cmd);
     
     cmd.endRendering();
@@ -765,10 +778,12 @@ void Core::updateUniformBuffers()
     float time = std::chrono::duration<float, std::chrono::seconds::period>(currentTime - startTime).count();
 
     UniformBufferObject ubo{};
-    ubo.model = rotate(glm::mat4(1.0f), time * glm::radians(90.0f), glm::vec3(0.0f, 0.0f, 1.0f));
-    ubo.view = lookAt(glm::vec3(2.0f, 2.0f, 2.0f), glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 0.0f, 1.0f));
-    ubo.proj = glm::perspective(glm::radians(45.0f), static_cast<float>(m_swapChainExtent.width) / static_cast<float>(m_swapChainExtent.height), 0.1f, 10.0f);
-    ubo.proj[1][1] *= -1;
+    constants.model = ubo.model = rotate(glm::mat4(1.0f), time * glm::radians(90.0f), glm::vec3(0.0f, 0.0f, 1.0f));
+    constants.view = ubo.view = lookAt(glm::vec3(2.0f, 2.0f, 2.0f), glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 0.0f, 1.0f));
+    constants.proj = ubo.proj = glm::perspective(glm::radians(45.0f), static_cast<float>(m_swapChainExtent.width) / static_cast<float>(m_swapChainExtent.height), 0.1f, 10.0f);
+    constants.proj = ubo.proj[1][1] *= -1;
+
+    render_matrix = ubo.proj * ubo.view * ubo.model;
 
     memcpy(m_uniformBuffersMapped[m_frameIndex], &ubo, sizeof(ubo));
 }
@@ -846,7 +861,7 @@ void Core::draw()
         .commandBufferCount = 1, 
         .pCommandBuffers = &*m_commandBuffers[QType::Graphics][m_frameIndex],
         .signalSemaphoreCount = 1, 
-        .pSignalSemaphores = &*m_renderFinishedSemaphores[imageIndex]
+        .pSignalSemaphores = &*m_renderFinishedSemaphores[imageIndex],
     };
     m_queues[QType::Graphics].submit(submitInfo, *m_inFlightFences[m_frameIndex]);
 
