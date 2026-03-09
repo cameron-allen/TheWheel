@@ -1,9 +1,9 @@
-#include "pch.h"
+#include "core/core_pch.h"
 #include <SDL3/SDL.h>
 #include <SDL3/SDL_vulkan.h>
-#include "core/window.h"
+#include "core/system/window.h"
+#include "core/system/event_handler.h"
 #include "core/engine.h"
-#include "core/event_handler.h"
 
 bool SDLWindow::m_open = false;
 

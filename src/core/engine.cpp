@@ -1,16 +1,17 @@
-#include "pch.h"
+#include "core/core_pch.h"
+#include "read_file.h"
 #include "core/engine.h"
+
+#include <filesystem>
+#include <ktx.h>
+#include <ktxvulkan.h>
 
 #include <SDL3/SDL.h>
 #include <SDL3/SDL_vulkan.h>
-#include "core/window.h"
+#include "core/system/window.h"
 
 #include "core/geometry/mesh.h"
 #include "core/renderer.h"
-
-#include <glm/glm.hpp>
-#include <glm/gtc/matrix_transform.hpp>
-#include <chrono>
 
 Renderer* pRenderer = nullptr;
 
@@ -28,9 +29,12 @@ const std::vector<uint16_t> index_data =
 UniformBufferObject constants;
 glm::mat4 render_matrix;
 
+ImageBuffer triIB;
 Mesh triangle;
 
 constexpr int MAX_FRAMES_IN_FLIGHT = 2;
+
+std::string root_dir = std::filesystem::path(__FILE__).parent_path().parent_path().parent_path().string();
 
 const std::vector<const char*> VALIDATION_LAYERS = {
     "VK_LAYER_KHRONOS_validation"
@@ -591,10 +595,25 @@ void Core::createSyncObjects()
     }
 }
 
+void Core::createTextureImages() 
+{
+    std::string resource_path = root_dir + "/assets/ktx2/holy_cow.ktx2";
+   
+    triIB.initBuffer(m_device, resource_path.c_str());
+    
+    // ...
+    // Vulkan rendering using the texture
+    // ...
+    // When done using the image in Vulkan...
+    //ktxVulkanTexture_Destruct(&texture, vkctx.device, nullptr);
+}
+
+void Core::createTextureSampler() 
+{
+}
+
 void Core::createMeshes()
 {
-    Allocator::init(m_instance, m_dGPU, m_device);
-
     m_pDMemoryProperties = m_dGPU.getMemoryProperties();
     triangle.init(m_device, &vertex_data, &index_data);
 }
@@ -604,20 +623,19 @@ void Core::createUBOs()
     m_uniformBuffers.clear();
     m_uniformBufferAllocations.clear();
     m_uniformBuffersMapped.clear();
-    VmaAllocator& allocator = Allocator::getAllocator();
+    VmaAllocator& allocator = Allocator::GetAllocator();
     for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
         vk::DeviceSize bufferSize = sizeof(UniformBufferObject);
         VkBuffer buffer({});
-        VmaAllocationInfo allocInfo{};
         m_uniformBufferAllocations.push_back(
             Buffer::Create(
-                m_device, 
-                bufferSize, 
-                VkBufferUsageFlagBits::VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, 
-                VkMemoryPropertyFlagBits::VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VkMemoryPropertyFlagBits::VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, 
+                m_device,
                 buffer,
-                VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT));
-        
+                bufferSize, 
+                VkBufferUsageFlagBits::VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
+                VMA_ALLOCATION_CREATE_HOST_ACCESS_RANDOM_BIT |
+                VMA_ALLOCATION_CREATE_MAPPED_BIT,
+                VMA_MEMORY_USAGE_AUTO_PREFER_HOST));
         void* data = nullptr;
         vmaMapMemory(allocator, m_uniformBufferAllocations[i], &data);
         m_uniformBuffers.emplace_back(vk::Buffer(std::move(buffer)));
@@ -979,6 +997,8 @@ void Core::init()
         createDescriptorLayout();
         createGraphicsPipeline();
         createCommandPools();
+        Allocator::Init(m_instance, m_dGPU, m_device);
+        createTextureImages();
         createMeshes();
         createUBOs();
         createDescriptorPool();
@@ -1009,7 +1029,7 @@ void Core::loop()
 
 void Core::clean()
 {
-    VmaAllocator allocator = Allocator::getAllocator();
+    VmaAllocator allocator = Allocator::GetAllocator();
     cleanSwapChain();
     
     for (int i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) 
@@ -1019,7 +1039,8 @@ void Core::clean()
     }
 
     triangle.destroy();
-    Allocator::clean();
+    triIB.destroy();
+    Allocator::Clean();
     mp_window->clean();
     Renderer::GetInstance().clean();
     delete(mp_window);

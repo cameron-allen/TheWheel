@@ -1,23 +1,27 @@
 #pragma once
-#include <vector>
-#include <vulkan/vulkan.hpp>
-#include <vulkan/vulkan_raii.hpp>
-#include <glm/vec2.hpp>
-#include <glm/vec3.hpp>
-#include <glm/vec4.hpp>
-#include <type_traits>
-#include <vma/vk_mem_alloc.h>
-
+#include "enums.h"
 
 namespace Allocator 
 {
-	void init(vk::raii::Instance& instance,
+	void Init(vk::raii::Instance& instance,
 		vk::raii::PhysicalDevice& physicalDevice,
 		vk::raii::Device& device);
 
-	VmaAllocator& getAllocator();
+	VmaAllocator& GetAllocator();
 
-	void clean();
+	void Clean();
+};
+
+namespace CommandBuffer 
+{
+	//@brief Creates command buffer that executes commands one time
+	vk::raii::CommandBuffer BeginSingleUse(vk::raii::Device& device, QType qType);
+
+	//@brief Ends single use command buffer. Connects fence if pFence != nullptr.
+	void EndSingleUse(
+		vk::raii::CommandBuffer& commandBuffer, 
+		QType qType,
+		vk::raii::Fence* pFence = nullptr);
 };
 
 struct Vertex 
@@ -42,7 +46,7 @@ struct Vertex
 	}
 };
 
-struct CopyInfo
+struct CommandInfo
 {
 	vk::raii::CommandBuffer cmd;
 	vk::raii::Fence fence;
@@ -63,7 +67,7 @@ public:
 	void destroy() 
 	{
 		if (m_buffer != VK_NULL_HANDLE) {
-			vmaDestroyBuffer(Allocator::getAllocator(), m_buffer, m_allocation);
+			vmaDestroyBuffer(Allocator::GetAllocator(), m_buffer, m_allocation);
 			m_buffer = VK_NULL_HANDLE;
 			m_allocation = VK_NULL_HANDLE;
 		}
@@ -73,14 +77,14 @@ public:
 	// -----Helpers-----
 
 	//@brief Creates a buffer from a set of specifications (i.e. size, usage, properties)
-	//@return Mapped data if VMA_ALLOCATION_CREATE_MAPPED_BIT allocation flag is present
+	//@return VmaAllocation (use for alloc info access and proper destruction)
 	static VmaAllocation Create(
 		vk::raii::Device& device,
-		vk::DeviceSize size,
-		VkBufferUsageFlags usage,
-		VkMemoryPropertyFlags properties,
 		VkBuffer& buffer,
-		unsigned int allocFlags = 0);
+		vk::DeviceSize size,
+		VkBufferUsageFlags buffUsage,
+		VmaAllocationCreateFlags allocFlags = 0,
+		VmaMemoryUsage memUsage = VMA_MEMORY_USAGE_AUTO);
 
 	//@brief Copies source buffer into destination buffer
 	static void Copy(
@@ -91,7 +95,7 @@ public:
 		vk::DeviceSize dstOffset = 0);
 
 	//@brief Copies source buffer into destination buffer and returns struct that contains the copy CommandBuffer and Fence
-	static CopyInfo CopyAndReturn(
+	static CommandInfo CopyAndReturn(
 		vk::raii::Device& device,
 		VkBuffer& srcBuffer,
 		VkBuffer& dstBuffer,
@@ -100,6 +104,15 @@ public:
 
 	//@brief Queries and finds buffer memory requirements
 	static uint32_t FindMemoryType(uint32_t typeFilter, vk::MemoryPropertyFlags properties);
+};
+
+class VertexBuffer : public Buffer
+{
+public:
+	VertexBuffer() {}
+
+	//@brief Initializes vertex buffer
+	void initBuffer(vk::raii::Device& device, std::vector<Vertex> const* vertices);
 };
 
 class IndexBuffer : public Buffer
@@ -115,15 +128,6 @@ public:
 
 	size_t getIndicesSize() const
 	{ return m_numIndices; }
-};
-
-class VertexBuffer : public Buffer
-{
-public:
-	VertexBuffer() {}
-
-	//@brief Initializes vertex buffer
-	void initBuffer(vk::raii::Device& device, std::vector<Vertex> const* vertices);
 };
 
 template<typename T>
@@ -152,4 +156,47 @@ public:
 	//@brief Gets indices count
 	uint32_t getIndicesCount() const
 	{ return m_numIndices; }
+};
+
+struct ktxTexture2;
+
+class ImageBuffer
+{
+private:
+	VkImage m_image = VK_NULL_HANDLE;
+	VmaAllocation m_allocation = VK_NULL_HANDLE;
+
+public:
+	//@brief Initializes vertex buffer
+	void initBuffer(vk::raii::Device& device, const char* ktx2ImagePath);
+
+	//@brief Destroys image buffer
+	void destroy();
+
+	// -----Helpers-----
+
+	//@brief Creates VkImage
+	//@return VmaAllocation (use for alloc info access and proper destruction)
+	static VmaAllocation Create(
+		vk::raii::Device& device,
+		VkImage& image,
+		ktxTexture2* texture,
+		VkImageTiling tiling,
+		VkImageUsageFlags usageFlags,
+		VmaAllocationCreateFlags allocFlags = 0,
+		VmaMemoryUsage memUsage = VMA_MEMORY_USAGE_AUTO);
+
+	//@brief Copies buffer data into a VkImage
+	static void Copy(
+		vk::raii::Device& device,
+		VkBuffer& srcBuffer,
+		VkImage& dstImage,
+		vk::BufferImageCopy biCopy);
+
+	//@brief Transitions VkImageLayout
+	static void TransitionLayout(
+		vk::raii::Device& device,
+		const VkImage& image, 
+		VkImageLayout oldLayout, 
+		VkImageLayout newLayout);
 };

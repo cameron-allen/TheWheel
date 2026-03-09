@@ -9,6 +9,10 @@
       "features": [ "vulkan" ]
     },
     "vulkan-memory-allocator",
-    "ktx"
-  ]
+    {
+      "name": "ktx",
+      "features": [ "vulkan" ]
+    }
+  ],
+  "builtin-baseline": "f36d2c22b92c43a7dc6ca41a380434d15570e7a4"
 }

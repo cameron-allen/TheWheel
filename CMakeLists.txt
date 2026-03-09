@@ -3,7 +3,7 @@
 #
 include(src/cmake/compile_shaders.cmake)
 include(src/cmake/add_module_library.cmake)
-cmake_minimum_required (VERSION 3.28)
+cmake_minimum_required (VERSION 3.31.10)
 
 # Enable Hot Reload for MSVC compilers if supported.
 if (POLICY CMP0141)
@@ -32,6 +32,9 @@ find_package(SDL3 CONFIG REQUIRED)
 find_package(glm CONFIG REQUIRED)
 find_package(imgui CONFIG REQUIRED)
 find_package(VulkanMemoryAllocator CONFIG REQUIRED)
+find_package(ktx CONFIG REQUIRED)
+
+message(STATUS "LibKTX Version: ${ktx_VERSION_MAJOR}")
 
 find_program(SLANGC_EXECUTABLE NAMES slangc REQUIRED)
 message(STATUS "Using Slang compiler: ${SLANGC_EXECUTABLE}")
@@ -46,6 +49,7 @@ target_precompile_headers(GeometryLib PRIVATE
 target_link_libraries(GeometryLib PRIVATE 
     Vulkan::Vulkan 
     glm::glm-header-only
+    KTX::ktx
     PUBLIC
     GPUOpen::VulkanMemoryAllocator
 )
@@ -72,6 +76,10 @@ add_executable(TheWheel ${SRC_FILES})
 target_include_directories(TheWheel PRIVATE 
     "${CMAKE_SOURCE_DIR}/include"
     "${Vulkan_INCLUDE_DIRS}"
+)
+
+target_precompile_headers(TheWheel PRIVATE 
+    "include/core/core_pch.h"
 )
 
 # Vulkan compiler definitions

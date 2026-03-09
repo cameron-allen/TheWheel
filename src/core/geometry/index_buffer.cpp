@@ -4,7 +4,7 @@ void IndexBuffer::initBuffer(
     vk::raii::Device& device, 
     std::vector<uint32_t> const* indices)
 {
-    VmaAllocator& allocator = Allocator::getAllocator();
+    VmaAllocator& allocator = Allocator::GetAllocator();
     m_numIndices = indices->size();
     vk::DeviceSize iSize = sizeof((*indices)[0]) * m_numIndices;
     
@@ -12,11 +12,9 @@ void IndexBuffer::initBuffer(
     
     VmaAllocation allocation = Buffer::Create(
         device,
-        iSize,
-        VkBufferUsageFlagBits::VK_BUFFER_USAGE_TRANSFER_SRC_BIT, 
-        VkMemoryPropertyFlagBits::VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | 
-        VkMemoryPropertyFlagBits::VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, 
         stagingBuffer,
+        iSize,
+        VkBufferUsageFlagBits::VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
         VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT);
 
     void* data = nullptr;
@@ -24,14 +22,14 @@ void IndexBuffer::initBuffer(
     memcpy(data, indices->data(), (size_t)iSize);
     vmaUnmapMemory(allocator, allocation);
 
-    Buffer::Create(
-        device, 
+    m_allocation = Buffer::Create(
+        device,
+        m_buffer,
         iSize, 
         VkBufferUsageFlagBits::VK_BUFFER_USAGE_TRANSFER_DST_BIT | 
-        VkBufferUsageFlagBits::VK_BUFFER_USAGE_INDEX_BUFFER_BIT, 
-        VkMemoryPropertyFlagBits::VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, 
-        m_buffer,
-        VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT);
+        VkBufferUsageFlagBits::VK_BUFFER_USAGE_INDEX_BUFFER_BIT,
+        0,
+        VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE);
 
     Buffer::Copy(device, stagingBuffer, m_buffer, iSize);
     vmaDestroyBuffer(allocator, stagingBuffer, allocation);

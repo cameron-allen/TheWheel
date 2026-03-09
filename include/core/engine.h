@@ -1,17 +1,6 @@
 #pragma once
-#include <vulkan/vulkan.hpp>
-#include <vulkan/vulkan_raii.hpp>
 #include <vma/vk_mem_alloc.h>
 #include <glm/mat4x4.hpp>
-
-// Queue Types
-enum QType 
-{
-	Graphics,
-	Compute,
-	Transfer,
-	Present
-};
 
 class SDLWindow;
 
@@ -100,6 +89,10 @@ private:
 	void createCommandBuffers();
 	//@brief Initializes rendering semaphores and fences
 	void createSyncObjects();
+	//@brief Initializes images from ktx2 files
+	void createTextureImages();
+	//@brief Initializes texture sampler
+	void createTextureSampler();
 	//@brief Initializes meshes
 	void createMeshes();
 	//@briefs Initializes uniform buffers

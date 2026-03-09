@@ -1,6 +1,5 @@
-#include "pch.h"
 #include <SDL3/SDL_events.h>
-#include "core/event_handler.h"
+#include "core/system/event_handler.h"
 
 EventHandler* EventHandler::mp_instance = nullptr;
 
